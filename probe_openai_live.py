@@ -10,7 +10,21 @@ import wave
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / 'work/ivan-jp-pilot/live-source'))
-from openai_live import run_openai_live, OpenAILiveError
+from openai_live import run_openai_live, OpenAILiveError, SUPPORTED_VOICES, VOICE
+
+
+async def paced_packets(pcm, seconds, *, clock=time.monotonic, sleep=asyncio.sleep):
+    """Replay 20 ms packets without burst-catching-up after a delayed send.
+
+    Preserves input audio if scheduling or transport pauses; the probe may take
+    longer than the file duration, instead of pretending that burst input was a
+    realtime microphone. Production capture is handled by the browser worklet.
+    """
+    next_at = clock() + .02
+    for index in range(seconds * 50):
+        await sleep(max(0, next_at - clock()))
+        yield pcm[index * 640:(index + 1) * 640].ljust(640, b'\0')
+        next_at = max(next_at + .02, clock() + .02)
 
 
 async def probe(args):
@@ -35,11 +49,11 @@ async def probe(args):
         raise ValueError('Input must be nonempty and shorter than the requested duration.')
     ready = asyncio.Event()
     output = bytearray()
-    stats = {'model': 'gpt-live-1', 'voice': 'echo', 'sample_rate': 16000,
+    stats = {'model': 'gpt-live-1', 'voice': args.voice, 'sample_rate': 16000,
              'session_started_validated': False, 'input_packets': 0,
              'input_packets_after_first_output': 0, 'nonzero_input_packets_after_first_output': 0,
              'output_packets': 0, 'first_output_ms': None,
-             'scope': 'Paced recording plus silence, native Echo only; not proof of conversational full duplex or voice quality.'}
+             'scope': 'Paced recording plus silence, native Live voice only; not proof of conversational full duplex or voice quality.'}
     started_at = None
 
     def on_ready():
@@ -58,9 +72,7 @@ async def probe(args):
 
     async def events():
         await ready.wait()
-        for index in range(args.seconds * 50):
-            await asyncio.sleep(max(0, started_at + (index + 1) * .02 - time.monotonic()))
-            packet = pcm[index * 640:(index + 1) * 640].ljust(640, b'\0')
+        async for packet in paced_packets(pcm, args.seconds):
             stats['input_packets'] += 1
             if stats['output_packets']:
                 stats['input_packets_after_first_output'] += 1
@@ -72,14 +84,15 @@ async def probe(args):
     async with asyncio.timeout(args.seconds + 20):
         await run_openai_live(api_key=key, persona_instructions='You are a concise voice demo. Respond naturally to the caller.',
                               user_events=events(), on_audio=on_audio, on_cancel=lambda token: None,
-                              on_ready=on_ready, language=args.language,
+                              on_ready=on_ready, language=args.language, voice_name=args.voice,
                               ws_url=settings.get('OPENAI_LIVE_URL') or 'wss://api.openai.com/v1/live/sessions')
     stats['session_closed_confirmed'] = True
+    stats['wall_duration_seconds'] = round(time.monotonic() - started_at, 3)
     stats['output_seconds'] = len(output) / 32000
     stats['nonzero_output'] = any(output)
     folder = ROOT / 'runtime/openai-live-probe' / time.strftime('%Y%m%d-%H%M%S')
     folder.mkdir(parents=True, exist_ok=False)
-    with wave.open(str(folder / 'echo-output.wav'), 'wb') as recording:
+    with wave.open(str(folder / f'{args.voice}-output.wav'), 'wb') as recording:
         recording.setnchannels(1)
         recording.setsampwidth(2)
         recording.setframerate(16000)
@@ -94,6 +107,7 @@ def main():
     parser.add_argument('--input-wav', type=Path, required=True)
     parser.add_argument('--seconds', type=int, default=20, choices=range(5, 121), metavar='5..120')
     parser.add_argument('--language', choices=['ja', 'en'], default='ja')
+    parser.add_argument('--voice', choices=SUPPORTED_VOICES, default=VOICE)
     args = parser.parse_args()
     try:
         return asyncio.run(probe(args))

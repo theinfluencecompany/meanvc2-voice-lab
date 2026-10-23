@@ -120,14 +120,16 @@ test('selected source voice survives relay and unsupported values are refused', 
   }
 });
 
-test('Echo is accepted only for GPT Live and preserved across relay', () => {
-  const start = { type: 'start', mode: 'gpt_live_native', character_id: 'reiji', language: 'ja', source_voice: 'echo' };
+test('official native voices are accepted only for GPT Live and preserved across relay', () => {
+ for (const voice of ['echo', 'shida', 'harema']) {
+  const start = { type: 'start', mode: 'gpt_live_native', character_id: 'reiji', language: 'ja', source_voice: voice };
   const { relay, host, client } = connected();
   client.receive(JSON.stringify(start));
   assert.deepEqual(JSON.parse(host.json().at(-1).data), start);
   relay.finishSession();
   assert.throws(() => validateClientText(JSON.stringify({ ...start, source_voice: 'Schedar' })), /invalid source voice/);
   assert.throws(() => validateClientText(JSON.stringify({ ...start, mode: 'gemini_native' })), /invalid source voice/);
+ }
 });
 
 test('legacy start stays compatible and unknown or path-based character selections are rejected', () => {

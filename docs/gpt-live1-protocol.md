@@ -25,7 +25,7 @@
 }
 ```
 
-等 `session.started`，核验 resolved model、voice、format 才向网页发 ready。Voice 和 format 在 session 中不可更改。Live 支持16k/24k PCM；本实现固定 **16kHz、mono、signed PCM16 little endian** 输入输出，原样传递、无重采样/变声。
+等 `session.started`，核验 resolved model、所选voice、format 才向网页发 ready。默认Echo，另允许官方日语声音Shida、Harema；详见[原生声音方案](native-voice-options.md)。Voice 和 format 在 session 中不可更改。Live 支持16k/24k PCM；本实现固定 **16kHz、mono、signed PCM16 little endian** 输入输出，原样传递、无重采样/变声。
 
 - 输入：`session.input_audio.append`，字段 `audio` 为 raw PCM base64，无 WAV 头。
 - 输出：`session.output_audio.delta`，字段 `delta` 为同格式 PCM base64。

@@ -130,6 +130,22 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.cancels, [self.audio[0][0]])
         self.assertEqual(self.server_events[-1]['type'], 'session.close')
 
+    async def test_selected_live_voice_must_be_confirmed_before_ready(self):
+        for voice in ['shida', 'harema']:
+            with self.subTest(voice=voice):
+                self.ack = resolved()
+                self.ack['session']['audio']['output']['voice'] = voice
+                self.ready.clear()
+                task = self.launch(voice_name=voice)
+                await asyncio.wait_for(self.ready.wait(), 1)
+                self.assertEqual(self.server_events[-1]['session']['audio']['output']['voice'], voice)
+                await self.finish(task)
+        self.ack = resolved()  # Provider silently falls back to Echo.
+        self.ready.clear()
+        with self.assertRaisesRegex(live.OpenAILiveError, 'requested voice'):
+            await asyncio.wait_for(self.launch(voice_name='shida'), 1)
+        self.assertFalse(self.ready.is_set())
+
     async def test_input_continues_while_output_callback_is_pending(self):
         self.initial_events = [output()]
         self.callback_block = asyncio.Event()
@@ -273,6 +289,56 @@ class Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.transcripts, [('user', 'Hello'), ('model', 'Hi')])
         self.assertFalse(self.cancels)
         await self.finish(task)
+
+    async def test_slow_transcript_callback_does_not_block_receiving_audio(self):
+        transcript_started = asyncio.Event()
+        transcript_release = asyncio.Event()
+        async def transcript(role, text):
+            transcript_started.set()
+            await transcript_release.wait()
+        self.initial_events = [
+            {'type': 'session.input_transcript.delta', 'delta': 'Hello'}, output()]
+        task = self.launch(on_transcript=transcript)
+        await asyncio.wait_for(transcript_started.wait(), 1)
+        await asyncio.wait_for(self.got_audio.wait(), .15)
+        self.assertFalse(transcript_release.is_set())
+        transcript_release.set()
+        await self.finish(task)
+
+    async def test_transcript_backlog_is_bounded_even_if_callback_stalls(self):
+        block = asyncio.Event()
+        async def transcript(role, text):
+            await block.wait()
+        self.initial_events = [
+            {'type': 'session.output_transcript.delta', 'delta': 'x' * 4096}
+            for _ in range(12)]
+        with self.assertRaisesRegex(live.OpenAILiveError, 'transcript buffer'):
+            await asyncio.wait_for(self.launch(on_transcript=transcript), 1)
+        self.assertEqual(len(self.cancels), 1)
+        self.assertEqual(self.server_events[-1]['type'], 'session.close')
+
+    async def test_probe_keeps_packet_spacing_after_slow_send(self):
+        import importlib.util
+        from pathlib import Path
+        probe_path = Path(__file__).resolve().parents[3] / 'probe_openai_live.py'
+        spec = importlib.util.spec_from_file_location('live_probe_pacing_test', probe_path)
+        probe = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(probe)
+        now = 0.0
+        async def sleep(delay):
+            nonlocal now
+            now += delay
+        packets = []
+        timestamps = []
+        async for packet in probe.paced_packets(b'\x01\0' * 320, 1, clock=lambda: now, sleep=sleep):
+            timestamps.append(now)
+            packets.append(packet)
+            if len(packets) == 3:
+                now += .5  # Transport stall; never replay the backlog in a burst.
+        self.assertEqual(len(packets), 50)
+        self.assertEqual(packets[0], b'\x01\0' * 320)
+        self.assertEqual(packets[-1], b'\0' * 640)
+        self.assertTrue(all(b - a >= .019999 for a, b in zip(timestamps, timestamps[1:])))
 
     async def test_credentials_are_rejected_in_urls_and_exact_model_is_required(self):
         for args in [{'ws_url': 'wss://user:pass@example.com/v1/live/sessions'},

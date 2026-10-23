@@ -4,6 +4,8 @@ Gemini Live → MeanVC2 流式变声的独立实验工具。提供角色原声�
 
 **[打开在线体验页面](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/)**
 
+**[同一声源：整段与流式对照](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/?view=compare)** — 久世、Ivan，日英四组，直接比较原声、目标参考、官方整段和当前流式。
+
 页面可直接播放固定样音；实时对话需要体验码，且托管者的电脑与语音服务保持在线。体验码通过私下分享获取，不写入公开仓库。
 
 **这是实验快照，不是 Prelulu 生产源码。当前流式转换的音色相似度和音质仍不理想，不应当作已经通过验收的替代方案。**
@@ -14,7 +16,7 @@ Gemini Live → MeanVC2 流式变声的独立实验工具。提供角色原声�
 - 日语、英语通话和固定样音。
 - Gemini 基础声源可选 Schedar、Iapetus、Kore，每种均附日英基准原声。
 - Gemini 原声对照、MeanVC2 流式转换、文字试聊、麦克风输入及打断。
-- 开发分支新增可选 GPT-Live-1 / Echo 原声适配；缺少专用 API 配置时保持不可用。尚未完成真实 API 与听感验收，不经过 MeanVC2。
+- 开发分支新增可选 GPT-Live-1 原声适配，默认 Echo，可选 Shida 日语男声、Harema 日语女声；缺少专用 API 配置时保持不可用。尚未完成真实 API 与听感验收，不经过 MeanVC2。
 - 可选 Cloudflare Worker 中转；MeanVC2 始终在运行 Python 服务的电脑 CPU 上执行。
 
 ```text
@@ -74,6 +76,22 @@ python3.11 configure_openai.py
 
 该脚本按真实速度发送录音及其后的静音，保存Echo原声和会话记录到被Git忽略的`runtime/openai-live-probe/`。即使收到音频，也还需要真人重叠说话验收，不能将录音回放结果冒充真实对话效果。
 
+可增加 `--voice shida` 或 `--voice harema` 比较官方日语声音。之后还可评估 [原生文字定制声音](docs/native-voice-options.md)，省去外部变声；它不保证复刻现有 Fish 声线。
+
+## 重做同源对照
+
+页面顶部“整段 / 流式同源对照”使用同一份16kHz输入、角色参考、模型权重及初始随机状态。两路仍分别采用官方和当前实时的实现，适合比较实际结果，不能把差异归因于单个参数。
+
+模型安装完成后可重新生成，再构建页面：
+
+```bash
+.venv/bin/python scripts/compare_same_source.py
+python3 scripts/publish_same_source.py
+npm --prefix web run build
+```
+
+该过程不调用语音 API，使用已保存的 Gemini Schedar 录音；处理时间仅是本机离线计算，不是通话延迟。
+
 ## 可选：分享公网体验
 
 见 [Cloudflare 部署说明](cloudflare/README.md)。Cloudflare 只托管静态页面和转发音频，**不会替你提供 MeanVC2 算力**。这个仓库没有包含现有体验站的访问凭证，也不会自动连到原作者的电脑。
@@ -84,6 +102,7 @@ python3.11 configure_openai.py
 npm --prefix web run check
 npm --prefix web run build
 node --test cloudflare/worker.test.mjs
+node --test web/test_playback.mjs
 .venv/bin/python -m unittest discover -s work/ivan-jp-pilot/local-call -p test_quality_gateway.py
 .venv/bin/python -m unittest discover -s work/ivan-jp-pilot/live-source -p test_gemini_bridge.py
 .venv/bin/python -m unittest discover -s work/ivan-jp-pilot/live-source -p test_openai_live.py

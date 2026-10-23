@@ -15,7 +15,7 @@ import comparisonExperimentUrl from "./current-converted.wav?url";
 const qualityComparisons = [{ label: "当前转换试听 · 日语", url: comparisonExperimentUrl }];
 const PUBLIC_ORIGIN = import.meta.env.VITE_PUBLIC_ORIGIN ?? "";
 const publicModes = new Set(["gemini_vc_quality", "gemini_native", "gpt_live_native"]);
-const modeLabels: Record<string, string> = { gemini_vc_quality: "角色对话 · 转换声音", gemini_native: "Gemini 原声 · 对比体验", gpt_live_native: "GPT-Live-1 · Echo 原声" };
+const modeLabels: Record<string, string> = { gemini_vc_quality: "角色对话 · 转换声音", gemini_native: "Gemini 原声 · 对比体验", gpt_live_native: "GPT-Live-1 · 原声" };
 const isLocalPage = () => ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 const isAllowedPage = () => window.location.origin === PUBLIC_ORIGIN || isLocalPage();
 
@@ -23,6 +23,9 @@ const LanguageSchema = z.enum(["ja", "en"]);
 type Language = z.infer<typeof LanguageSchema>;
 const languageLabels: Record<Language, string> = { ja: "日语", en: "英语" };
 const SourceVoiceSchema = z.enum(["Schedar", "Iapetus", "Kore"]);
+const GptVoiceSchema = z.enum(["echo", "shida", "harema"]);
+type GptVoice = z.infer<typeof GptVoiceSchema>;
+const gptVoiceLabels: Record<GptVoice, string> = { echo: "Echo · 默认", shida: "Shida · 日语男声", harema: "Harema · 日语女声" };
 type SourceVoice = z.infer<typeof SourceVoiceSchema>;
 const sourceVoices: { id: SourceVoice; label: string }[] = [
   { id: "Schedar", label: "Schedar · 平稳男声" },
@@ -44,8 +47,8 @@ type CharacterCapability = z.infer<typeof CharacterCapabilitySchema>;
 const ModeSchema = z.enum(["mic_vc", "gemini_vc", "gemini_native", "gemini_vc_quality", "gpt_live_native"]);
 const CapabilitySchema = z.object({ id: ModeSchema, label: z.string(), available: z.boolean(), reason: z.string().optional() });
 const ServerMessage = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("capabilities"), modes: z.array(CapabilitySchema), character: z.string(), characters: z.array(CharacterCapabilitySchema).optional(), languages: z.array(LanguageSchema).optional(), source_voices: z.array(SourceVoiceSchema).optional() }),
-  z.object({ type: z.literal("ready"), mode: ModeSchema, model: z.string(), sample_rate: z.number(), character_id: CharacterIdSchema.optional(), language: LanguageSchema.optional(), source_voice: z.enum(["Schedar", "Iapetus", "Kore", "echo"]).optional() }),
+  z.object({ type: z.literal("capabilities"), modes: z.array(CapabilitySchema), character: z.string(), characters: z.array(CharacterCapabilitySchema).optional(), languages: z.array(LanguageSchema).optional(), source_voices: z.array(SourceVoiceSchema).optional(), gpt_live_voices: z.array(GptVoiceSchema).optional() }),
+  z.object({ type: z.literal("ready"), mode: ModeSchema, model: z.string(), sample_rate: z.number(), character_id: CharacterIdSchema.optional(), language: LanguageSchema.optional(), source_voice: z.enum(["Schedar", "Iapetus", "Kore", "echo", "shida", "harema"]).optional() }),
   z.object({ type: z.literal("audio"), turn_id: z.string(), pcm: z.string().max(384000), sample_rate: z.number(), sequence: z.number().int().nonnegative() }),
   z.object({ type: z.literal("cancel"), turn_id: z.string() }),
   z.object({ type: z.literal("end"), turn_id: z.string() }),
@@ -75,7 +78,9 @@ export function LocalVoiceLab() {
   const runningCharacter = useRef<CharacterId>("ivan");
   const [sourceVoice, setSourceVoice] = useState<SourceVoice>("Schedar");
   const [availableSourceVoices, setAvailableSourceVoices] = useState<SourceVoice[]>([]);
-  const runningSourceVoice = useRef<SourceVoice | "echo">("Schedar");
+  const [gptVoice, setGptVoice] = useState<GptVoice>("echo");
+  const [availableGptVoices, setAvailableGptVoices] = useState<GptVoice[]>([]);
+  const runningSourceVoice = useRef<SourceVoice | GptVoice>("Schedar");
   const [mode, setMode] = useState<Mode>("gemini_vc_quality");
   const [status, setStatus] = useState("点击连接体验服务，然后开始通话或文字试聊。");
   const [error, setError] = useState("");
@@ -166,6 +171,7 @@ export function LocalVoiceLab() {
         if (message.type === "capabilities") {
           setAvailableLanguages(message.languages ?? ["ja"]);
           setAvailableSourceVoices(message.source_voices ?? []);
+          setAvailableGptVoices(message.gpt_live_voices ?? ["echo"]);
           setCharacterCapabilities(message.characters ?? [{ id: "ivan", name: "Ivan Volkov", reference_language: "en", gemini_voice: "Schedar", available: true }]);
           setModes(message.modes.filter((entry) => publicModes.has(entry.id))); setPhase("idle"); setStatus("服务已就绪，可以开始体验。");
           setMode((current) => message.modes.some((entry) => entry.id === current && entry.available) ? current : message.modes.find((entry) => entry.available && publicModes.has(entry.id))?.id ?? current);
@@ -232,7 +238,7 @@ export function LocalVoiceLab() {
   }, []);
 
   async function start(withMicrophone = true) {
-    if (phase !== "idle" || !modes.some((entry) => entry.id === mode && entry.available) || (mode !== "gpt_live_native" && !characterCapabilities.some((entry) => entry.id === characterId && entry.available)) || !availableLanguages.includes(language) || (mode !== "gpt_live_native" && !availableSourceVoices.includes(sourceVoice))) return;
+    if (phase !== "idle" || !modes.some((entry) => entry.id === mode && entry.available) || (mode !== "gpt_live_native" && !characterCapabilities.some((entry) => entry.id === characterId && entry.available)) || !availableLanguages.includes(language) || (mode === "gpt_live_native" ? !availableGptVoices.includes(gptVoice) : !availableSourceVoices.includes(sourceVoice))) return;
     if (!withMicrophone && (mode === "mic_vc" || mode === "gpt_live_native")) return;
     referenceAudio.current?.pause();
     sourceBaselineAudio.current?.pause();
@@ -243,7 +249,7 @@ export function LocalVoiceLab() {
     textInputOnly.current = !withMicrophone;
     runningCharacter.current = characterId;
     runningLanguage.current = language;
-    runningSourceVoice.current = mode === "gpt_live_native" ? "echo" : sourceVoice;
+    runningSourceVoice.current = mode === "gpt_live_native" ? gptVoice : sourceVoice;
     runningMode.current = mode; speech.current = { loud: 0, quiet: 0, armed: true };
     setPhase("starting"); setStatus(withMicrophone ? "等待麦克风授权…" : "正在连接实时语音…"); setError(""); setMetric(null); setPlaybackMs(null); setTranscript([]);
     setUnderruns({ count: 0, milliseconds: 0 });
@@ -264,7 +270,7 @@ export function LocalVoiceLab() {
       if (silent) silent.gain.value = 0;
       const playback = new LocalVoicePlayback(context, (milliseconds) => { if (alive.current) setPlaybackMs(Math.round(milliseconds)); }, (milliseconds) => {
         if (alive.current) setUnderruns((previous) => ({ count: previous.count + 1, milliseconds: previous.milliseconds + milliseconds }));
-      });
+      }, fail);
       audio.current = { context, stream, node, source, silent, playback };
       if (node) node.port.onmessage = (event: MessageEvent<unknown>) => {
         const parsed = MicrophonePacket.safeParse(event.data);
@@ -340,7 +346,7 @@ export function LocalVoiceLab() {
   const characterCapability = characterCapabilities.find((entry) => entry.id === characterId);
   const characterAvailable = mode === "gpt_live_native" || characterCapability?.available === true;
   const geminiVoiceLabel = sourceVoices.find((entry) => entry.id === sourceVoice)!.label;
-  const sourceVoiceAvailable = mode === "gpt_live_native" || availableSourceVoices.includes(sourceVoice);
+  const sourceVoiceAvailable = mode === "gpt_live_native" ? availableGptVoices.includes(gptVoice) : availableSourceVoices.includes(sourceVoice);
   const languageAvailable = availableLanguages.includes(language);
   const languageLabel = languageLabels[language];
   const selected = modes.find((entry) => entry.id === mode);
@@ -348,6 +354,7 @@ export function LocalVoiceLab() {
   return <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-4 py-8 text-foreground" data-testid="local-voice-lab">
     <header className="flex items-center justify-between gap-4">
       <a href="/" className="font-display text-xl">Prelulu</a>
+      <a href={`?view=compare${window.location.hash}`} className="text-sm text-muted-foreground">整段 / 流式同源对照</a>
     </header>
     <section className="rounded-2xl border border-border bg-card p-6 shadow-e1">
       <label htmlFor="voice-character" className="text-sm text-muted-foreground">角色</label>
@@ -381,8 +388,12 @@ export function LocalVoiceLab() {
         {busy && <p className="mt-2 text-xs text-muted-foreground">结束本次通话后可更换基础声音。</p>}
       </section>}
       {mode === "gpt_live_native" && <section className="mt-4 rounded-xl border border-border bg-background p-4" data-testid="gpt-live-source">
-        <h2 className="text-sm font-medium">GPT-Live-1 · Echo</h2>
-        <p className="mt-2 text-sm">原生连续语音，收听与输出同时进行；本模式不经过 MeanVC2。</p>
+        <h2 className="text-sm font-medium">GPT-Live-1 · {gptVoiceLabels[gptVoice]}</h2>
+        <label className="mt-3 block text-sm" htmlFor="gpt-voice">原生声音</label>
+        <select id="gpt-voice" aria-label="GPT Live 原生声音" className="ui-input mt-2" value={gptVoice} disabled={busy || phase === "checking"} onChange={(event) => { resetSelectionContent(); setGptVoice(GptVoiceSchema.parse(event.target.value)); }}>
+          {Object.entries(gptVoiceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <p className="mt-2 text-sm">原生连续语音，收听与输出同时进行；本模式不经过 MeanVC2。配置 GPT Live 权限后，可开始通话试听这三种声音。</p>
         <p className="mt-2 text-xs text-muted-foreground">需要麦克风。听说切换由模型处理，不按本机音量自动打断；结束后可切换模式。</p>
       </section>}
       <section className="mt-4 rounded-xl border border-border bg-background p-4" aria-labelledby="character-original-voice-heading">
@@ -442,7 +453,7 @@ export function LocalVoiceLab() {
         {modes.map((entry) => <div key={entry.id} className="flex flex-col gap-1">
           <Button variant={entry.id === mode ? "default" : "outline"} disabled={!entry.available || busy} onClick={() => setMode(entry.id)} aria-pressed={entry.id === mode}>{entry.id === "gemini_vc_quality" ? `${languageLabel}对话 · 流式转换` : modeLabels[entry.id] ?? entry.label}{!entry.available ? " · 暂不可用" : ""}</Button>
           {entry.id === "gemini_vc_quality" && <p className="text-xs text-muted-foreground">Gemini Live 使用 {geminiVoiceLabel} 生成{languageLabel}，经 MeanVC2 流式转换声音。</p>}
-          {entry.id === "gpt_live_native" && <p className="text-xs text-muted-foreground">连续麦克风输入与 Echo 原声输出。协议适配已实现；真实全双工体验仍待 API 验收。</p>}
+          {entry.id === "gpt_live_native" && <p className="text-xs text-muted-foreground">连续麦克风输入与原生语音输出，默认 Echo，可选日语原生声音。真实全双工体验仍待 API 验收。</p>}
           {!entry.available && entry.reason && <p className="text-xs text-muted-foreground">{entry.reason}</p>}
         </div>)}
       </div>

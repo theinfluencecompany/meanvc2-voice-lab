@@ -32,7 +32,7 @@ def main():
     except ValueError as exc:
         raise SystemExit(str(exc)) from None
     save_settings({'OPENAI_LIVE_API_KEY':key, 'OPENAI_LIVE_URL':url})
-    print('Saved locally. GPT-Live-1 and Echo are fixed; model access is checked when you connect.')
+    print('Saved locally. GPT-Live-1 defaults to Echo; Shida and Harema can be selected in the page. Access is checked on connection.')
 
 
 if __name__ == '__main__':

@@ -1,4 +1,4 @@
-"""Native GPT-Live-1 / Echo transport; no Gemini events or voice conversion.
+"""Native GPT-Live-1 transport; no Gemini events or voice conversion.
 
 Protocol-only support is not a successful provider/voice availability test.
 The caller owns microphone capture and must keep sending silence while idle.
@@ -17,6 +17,7 @@ import aiohttp
 LIVE_WS_URL = 'wss://api.openai.com/v1/live/sessions'
 MODEL = 'gpt-live-1'
 VOICE = 'echo'
+SUPPORTED_VOICES = ('echo', 'shida', 'harema')
 SAMPLE_RATE = 16000
 START_TIMEOUT = 10.0
 SEND_TIMEOUT = 5.0
@@ -26,6 +27,9 @@ MAX_INPUT_PCM_BYTES = 3200  # The app microphone sends <=100 ms per packet.
 MAX_OUTPUT_PCM_BYTES = 64000
 MAX_QUEUED_PCM_BYTES = 64000  # Includes a packet currently in the callback.
 MAX_QUEUE_PACKETS = 16
+MAX_TRANSCRIPT_DELTA_BYTES = 16384
+MAX_QUEUED_TRANSCRIPT_BYTES = 32768
+MAX_TRANSCRIPT_QUEUE_EVENTS = 32
 MAX_EVENT_BYTES = 256 * 1024
 
 
@@ -54,7 +58,7 @@ def _validate_url(url):
         raise OpenAILiveError('Use a secure Live WebSocket URL without credentials or query parameters') from None
 
 
-def _validate_started(event):
+def _validate_started(event, expected_voice=VOICE):
     session = event.get('session')
     if not isinstance(session, dict):
         raise OpenAILiveError('Live did not return a resolved session configuration')
@@ -64,8 +68,8 @@ def _validate_started(event):
     if (session.get('model') != MODEL or session.get('status') != 'active'
             or not isinstance(session.get('id'), str) or not session['id']):
         raise OpenAILiveError('Live did not confirm the requested active model')
-    if audio.get('output', {}).get('voice') != VOICE:
-        raise OpenAILiveError('Live did not confirm the Echo voice')
+    if audio.get('output', {}).get('voice') != expected_voice:
+        raise OpenAILiveError('Live did not confirm the requested voice')
     audio_format = audio.get('format')
     if not isinstance(audio_format, dict) or audio_format.get('type') != 'audio/pcm' or audio_format.get('rate') != SAMPLE_RATE:
         raise OpenAILiveError('Live did not confirm 16 kHz PCM audio')
@@ -101,8 +105,8 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
     """
     if not isinstance(api_key, str) or not api_key.strip() or not isinstance(persona_instructions, str) or not persona_instructions.strip():
         raise OpenAILiveError('An explicit API key and character instructions are required')
-    if model != MODEL or voice_name != VOICE:
-        raise OpenAILiveError('This native experiment requires GPT-Live-1 and Echo')
+    if model != MODEL or voice_name not in SUPPORTED_VOICES:
+        raise OpenAILiveError('This native experiment requires GPT-Live-1 and a supported Live voice')
     if language not in {'ja', 'en'}:
         raise OpenAILiveError('Unsupported call language')
     _validate_url(ws_url)
@@ -122,7 +126,9 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
     pending_error = None
     tasks = []
     queue = asyncio.Queue(maxsize=MAX_QUEUE_PACKETS)
+    transcripts = asyncio.Queue(maxsize=MAX_TRANSCRIPT_QUEUE_EVENTS)
     queued_bytes = 0
+    queued_transcript_bytes = 0
     sequence = 0
     send_lock = asyncio.Lock()
 
@@ -134,18 +140,18 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
         await send({'type': 'session.start', 'event_id': token,
                     'session': {'model': MODEL, 'instructions': instructions,
                                 'audio': {'format': {'type': 'audio/pcm', 'rate': SAMPLE_RATE},
-                                          'output': {'voice': VOICE}},
+                                          'output': {'voice': voice_name}},
                                 'delegation': {'type': 'client'}}})
         while True:
             event = await _read_event(ws)
             if event['type'] == 'session.started':
-                _validate_started(event)
+                _validate_started(event, voice_name)
                 return
             if event['type'] != 'info':
                 raise OpenAILiveError('Live sent media or commands before session startup was confirmed')
 
     async def receive():
-        nonlocal finalized, queued_bytes
+        nonlocal finalized, queued_bytes, queued_transcript_bytes
         while True:
             event = await _read_event(ws)
             kind = event['type']
@@ -171,7 +177,18 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
             elif kind in {'session.input_transcript.delta', 'session.output_transcript.delta'}:
                 if not isinstance(event.get('delta'), str):
                     raise OpenAILiveError('Live sent an invalid transcript')
-                await _callback(on_transcript, 'user' if kind == 'session.input_transcript.delta' else 'model', event['delta'])
+                text = event['delta']
+                size = len(text.encode('utf-8'))
+                if size > MAX_TRANSCRIPT_DELTA_BYTES:
+                    raise OpenAILiveError('Live sent an oversized transcript')
+                if on_transcript is not None:
+                    if queued_transcript_bytes + size > MAX_QUEUED_TRANSCRIPT_BYTES:
+                        raise OpenAILiveError('Live transcript buffer exceeded its bounded capacity')
+                    try:
+                        transcripts.put_nowait(('user' if kind == 'session.input_transcript.delta' else 'model', text, size))
+                    except asyncio.QueueFull:
+                        raise OpenAILiveError('Live transcript buffer exceeded its bounded capacity') from None
+                    queued_transcript_bytes += size
             elif kind == 'session.delegation.created':
                 # Client delegation requires an actual backend. End explicitly,
                 # rather than reporting a fabricated task result to the model.
@@ -220,6 +237,17 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
                 queued_bytes -= len(pcm)
                 queue.task_done()
 
+    async def dispatch_transcripts():
+        nonlocal queued_transcript_bytes
+        while True:
+            role, text, size = await transcripts.get()
+            try:
+                # UI/network callbacks must not stop receiving native audio.
+                await _callback(on_transcript, role, text)
+            finally:
+                queued_transcript_bytes -= size
+                transcripts.task_done()
+
     async def finalize():
         nonlocal finalized
         if ws is None or finalized or ws.closed:
@@ -246,7 +274,7 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
             started = True
             await _callback(on_ready)
             tasks = [asyncio.create_task(receive()), asyncio.create_task(send_input()),
-                     asyncio.create_task(playback())]
+                     asyncio.create_task(playback()), asyncio.create_task(dispatch_transcripts())]
             done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
             for task in done:
                 task.result()
@@ -264,6 +292,9 @@ async def run_openai_live(*, api_key, persona_instructions, user_events, on_audi
             while not queue.empty():
                 queue.get_nowait()
                 queue.task_done()
+            while not transcripts.empty():
+                transcripts.get_nowait()
+                transcripts.task_done()
             if started:
                 try:
                     await _callback(on_cancel, token)

@@ -29,6 +29,7 @@ PROFILE = 'ivan-en-v1'
 SOURCE_VOICES = ('Schedar', 'Iapetus', 'Kore')
 GPT_LIVE_MODEL = 'gpt-live-1'
 GPT_LIVE_VOICE = 'echo'
+GPT_LIVE_VOICES = ('echo', 'shida', 'harema')
 GPT_LIVE_URL = 'wss://api.openai.com/v1/live/sessions'
 CONFIG_KEYS = {'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LIVE_MODEL',
                'OPENAI_LIVE_API_KEY', 'OPENAI_API_KEY', 'OPENAI_LIVE_URL'}
@@ -81,7 +82,7 @@ def openai_ready(values):
         return False, '需要 GPT Live 测试 API Key；运行 configure_openai.py 配置，Gemini Key 不可用于此模式'
     if importlib.util.find_spec('aiohttp') is None:
         return False, '本地 aiohttp 尚未安装；请先运行 setup.py'
-    return True, '已配置，连接时验证 GPT-Live-1 权限及 Echo 音色'
+    return True, '已配置，连接时验证 GPT-Live-1 权限及所选音色'
 
 
 async def voice_health(profile=PROFILE):
@@ -105,6 +106,7 @@ async def capabilities():
     gpt_available, gpt_reason = openai_ready(settings)
     return {'type':'capabilities', 'character':'Ivan Volkov', 'video_available':False, 'languages':['ja','en'],
             'source_voices':list(SOURCE_VOICES),
+            'gpt_live_voices':list(GPT_LIVE_VOICES),
             'characters': [{'id': key, **{field: value[field] for field in
                 ('name', 'reference_language', 'gemini_voice')},
                 'available': available and quality and value['profile'] in health.get('profiles', {})}
@@ -117,7 +119,7 @@ async def capabilities():
                 {'id':'gemini_vc','label':'Gemini Live 男声日语 → Ivan 变声','available':available and vc,
                  'reason':reason if vc else 'MeanVC2 本地服务未启动'},
                 {'id':'gemini_native','label':'Gemini Live 原声（不变声）','available':available,'reason':reason},
-                {'id':'gpt_live_native','label':'GPT-Live-1 · Echo 原声（不变声）',
+                {'id':'gpt_live_native','label':'GPT-Live-1 · 原声（不变声）',
                  'available':gpt_available,'reason':gpt_reason},
             ]}
 
@@ -305,8 +307,8 @@ async def socket(request):
                     gpt_live = mode == 'gpt_live_native'
                     source_voice = event.get('source_voice', GPT_LIVE_VOICE if gpt_live else character['gemini_voice'])
                     if (not isinstance(source_voice, str)
-                            or source_voice not in ((GPT_LIVE_VOICE,) if gpt_live else SOURCE_VOICES)):
-                        emit({'type':'error','message':'GPT Live 原声模式仅支持 Echo' if gpt_live
+                            or source_voice not in (GPT_LIVE_VOICES if gpt_live else SOURCE_VOICES)):
+                        emit({'type':'error','message':'请选择 Echo、Shida 或 Harema' if gpt_live
                               else '请选择页面上的 Gemini 基础声音'})
                         continue
                     caps = await capabilities()
@@ -333,13 +335,13 @@ async def socket(request):
                         runner = asyncio.create_task(run_openai_live(
                             api_key=settings.get('OPENAI_LIVE_API_KEY') or settings['OPENAI_API_KEY'],
                             ws_url=settings.get('OPENAI_LIVE_URL') or GPT_LIVE_URL,
-                            model=GPT_LIVE_MODEL, voice_name=GPT_LIVE_VOICE,
+                            model=GPT_LIVE_MODEL, voice_name=source_voice,
                             persona_instructions=persona(character_id, language), language=language,
                             user_events=user_events(), on_audio=on_audio,
                             on_cancel=lambda token:emit({'type':'cancel','turn_id':token}),
                             on_transcript=lambda role,text:emit({'type':'transcript','role':role,'text':text}),
                             on_ready=lambda:emit({'type':'ready','mode':mode,'character_id':character_id,
-                                                 'language':language,'source_voice':GPT_LIVE_VOICE,
+                                                 'language':language,'source_voice':source_voice,
                                                  'model':GPT_LIVE_MODEL,'sample_rate':16000})))
                     else:
                         from google_session import run_google_live

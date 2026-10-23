@@ -261,10 +261,23 @@ class GatewayContracts(unittest.IsolatedAsyncioTestCase):
         for voice in ['Schedar', 'Kore', 'Echo', None, {'voice':'echo'}]:
             await ws.send_json({'type':'start','mode':'gpt_live_native','source_voice':voice})
             error, _ = await self.until(ws, 'error')
-            self.assertIn('仅支持 Echo', error['message'])
+            self.assertIn('Echo、Shida 或 Harema', error['message'])
             self.assertFalse(self.openai_calls)
             self.assertFalse(self.client.server.app[gateway.ACTIVE_KEY])
         await ws.close()
+
+    async def test_gpt_live_selects_japanese_native_voices_without_changing_model(self):
+        self.settings['OPENAI_LIVE_API_KEY'] = 'live-test-only'
+        for voice in ('shida', 'harema'):
+            ws, _ = await self.connect()
+            await ws.send_json({'type':'start','mode':'gpt_live_native','source_voice':voice})
+            ready, _ = await self.until(ws, 'ready')
+            self.assertEqual(ready['source_voice'], voice)
+            self.assertEqual(self.openai_calls[-1]['voice_name'], voice)
+            self.assertEqual(self.openai_calls[-1]['model'], 'gpt-live-1')
+            self.assertFalse(self.voice.starts)
+            await ws.close()
+            await asyncio.sleep(.02)
 
     async def test_gpt_live_rejects_text_interrupt_and_preserves_single_active_session(self):
         self.settings['OPENAI_LIVE_API_KEY'] = 'live-test-only'
