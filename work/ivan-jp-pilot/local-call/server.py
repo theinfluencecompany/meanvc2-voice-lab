@@ -1,7 +1,8 @@
-"""Loopback-only live microphone/Gemini gateway. No prerecorded audio source.
+"""Loopback-only microphone gateway for Gemini and GPT Live.
 
 Secrets live in .env.local next to this file, never in browser messages.
-The real MeanVC2 service must already listen on 127.0.0.1:8771.
+MeanVC2 conversion modes require the service on 127.0.0.1:8771.
+Native GPT Live audio does not pass through MeanVC2.
 """
 from __future__ import annotations
 import argparse
@@ -26,6 +27,11 @@ from gemini_bridge import HttpVCSink, NativeAudioBridge
 VC_URL = 'http://127.0.0.1:8771'
 PROFILE = 'ivan-en-v1'
 SOURCE_VOICES = ('Schedar', 'Iapetus', 'Kore')
+GPT_LIVE_MODEL = 'gpt-live-1'
+GPT_LIVE_VOICE = 'echo'
+GPT_LIVE_URL = 'wss://api.openai.com/v1/live/sessions'
+CONFIG_KEYS = {'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LIVE_MODEL',
+               'OPENAI_LIVE_API_KEY', 'OPENAI_API_KEY', 'OPENAI_LIVE_URL'}
 CHARACTERS = {
     'ivan': {'name': 'Ivan Volkov', 'profile': PROFILE, 'reference_language': '英语', 'gemini_voice': 'Schedar'},
     'saku': {'name': '朝霧 朔', 'profile': 'saku-ja-v1', 'reference_language': '日语', 'gemini_voice': 'Schedar'},
@@ -45,9 +51,9 @@ def config():
             line = line.strip()
             if line and not line.startswith('#') and '=' in line:
                 key, value = line.split('=', 1)
-                if key.strip() in {'GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LIVE_MODEL'}:
+                if key.strip() in CONFIG_KEYS:
                     values[key.strip()] = value.strip().strip('"').strip("'")
-    for key in ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_LIVE_MODEL']:
+    for key in CONFIG_KEYS:
         if os.environ.get(key): values[key] = os.environ[key]
     return values
 
@@ -70,6 +76,14 @@ def google_ready(values):
     return True, '已配置，连接时验证模型权限'
 
 
+def openai_ready(values):
+    if not (values.get('OPENAI_LIVE_API_KEY') or values.get('OPENAI_API_KEY')):
+        return False, '需要 GPT Live 测试 API Key；运行 configure_openai.py 配置，Gemini Key 不可用于此模式'
+    if importlib.util.find_spec('aiohttp') is None:
+        return False, '本地 aiohttp 尚未安装；请先运行 setup.py'
+    return True, '已配置，连接时验证 GPT-Live-1 权限及 Echo 音色'
+
+
 async def voice_health(profile=PROFILE):
     async with ClientSession(timeout=ClientTimeout(total=3)) as client:
         async with client.get(VC_URL + '/health') as response:
@@ -86,7 +100,9 @@ async def capabilities():
         vc = True
         quality = 'prefix_quality' in health.get('supported_processing_modes', [])
     except Exception: health, vc, quality = {}, False, False
-    available, reason = google_ready(config())
+    settings = config()
+    available, reason = google_ready(settings)
+    gpt_available, gpt_reason = openai_ready(settings)
     return {'type':'capabilities', 'character':'Ivan Volkov', 'video_available':False, 'languages':['ja','en'],
             'source_voices':list(SOURCE_VOICES),
             'characters': [{'id': key, **{field: value[field] for field in
@@ -101,6 +117,8 @@ async def capabilities():
                 {'id':'gemini_vc','label':'Gemini Live 男声日语 → Ivan 变声','available':available and vc,
                  'reason':reason if vc else 'MeanVC2 本地服务未启动'},
                 {'id':'gemini_native','label':'Gemini Live 原声（不变声）','available':available,'reason':reason},
+                {'id':'gpt_live_native','label':'GPT-Live-1 · Echo 原声（不变声）',
+                 'available':gpt_available,'reason':gpt_reason},
             ]}
 
 
@@ -284,9 +302,12 @@ async def socket(request):
                     if language not in ('ja','en'):
                         emit({'type':'error','message':'请选择日语或英语'})
                         continue
-                    source_voice = event.get('source_voice', character['gemini_voice'])
-                    if not isinstance(source_voice, str) or source_voice not in SOURCE_VOICES:
-                        emit({'type':'error','message':'请选择页面上的 Gemini 基础声音'})
+                    gpt_live = mode == 'gpt_live_native'
+                    source_voice = event.get('source_voice', GPT_LIVE_VOICE if gpt_live else character['gemini_voice'])
+                    if (not isinstance(source_voice, str)
+                            or source_voice not in ((GPT_LIVE_VOICE,) if gpt_live else SOURCE_VOICES)):
+                        emit({'type':'error','message':'GPT Live 原声模式仅支持 Echo' if gpt_live
+                              else '请选择页面上的 Gemini 基础声音'})
                         continue
                     caps = await capabilities()
                     choice = next((item for item in caps['modes'] if item['id'] == mode),None)
@@ -306,6 +327,20 @@ async def socket(request):
                         microphone = MicConversion(sink, emit)
                         runner = asyncio.create_task(microphone.run())
                         emit({'type':'ready','mode':mode,'character_id':character_id,'language':language,'model':'MeanVC2 · 本机 CPU','sample_rate':16000})
+                    elif gpt_live:
+                        from openai_live import run_openai_live
+                        settings = config()
+                        runner = asyncio.create_task(run_openai_live(
+                            api_key=settings.get('OPENAI_LIVE_API_KEY') or settings['OPENAI_API_KEY'],
+                            ws_url=settings.get('OPENAI_LIVE_URL') or GPT_LIVE_URL,
+                            model=GPT_LIVE_MODEL, voice_name=GPT_LIVE_VOICE,
+                            persona_instructions=persona(character_id, language), language=language,
+                            user_events=user_events(), on_audio=on_audio,
+                            on_cancel=lambda token:emit({'type':'cancel','turn_id':token}),
+                            on_transcript=lambda role,text:emit({'type':'transcript','role':role,'text':text}),
+                            on_ready=lambda:emit({'type':'ready','mode':mode,'character_id':character_id,
+                                                 'language':language,'source_voice':GPT_LIVE_VOICE,
+                                                 'model':GPT_LIVE_MODEL,'sample_rate':16000})))
                     else:
                         from google_session import run_google_live
                         from native_playback import NativePlaybackBridge
@@ -329,9 +364,15 @@ async def socket(request):
                                                  'sample_rate':16000 if sink else 24000}),
                             bridge_factory=measured_vc_factory(emit) if sink else NativePlaybackBridge))
                 elif kind == 'interrupt':
+                    if mode == 'gpt_live_native':
+                        emit({'type':'error','message':'GPT Live 原声模式使用连续麦克风，不支持手动打断控制'})
+                        continue
                     if microphone: microphone.interrupt()
                     elif started: incoming.put_nowait({'kind':'barge_in'})
                 elif kind == 'text':
+                    if mode == 'gpt_live_native':
+                        emit({'type':'error','message':'GPT Live 原声模式仅支持麦克风输入'})
+                        continue
                     if mode not in {'gemini_vc','gemini_vc_quality','gemini_native'} or not started:
                         emit({'type':'error','message':'麦克风变声模式不会生成 AI 回答'}); continue
                     value = event.get('text')

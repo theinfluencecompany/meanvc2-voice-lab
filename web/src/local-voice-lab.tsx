@@ -14,8 +14,8 @@ import comparisonExperimentUrl from "./current-converted.wav?url";
 
 const qualityComparisons = [{ label: "当前转换试听 · 日语", url: comparisonExperimentUrl }];
 const PUBLIC_ORIGIN = import.meta.env.VITE_PUBLIC_ORIGIN ?? "";
-const publicModes = new Set(["gemini_vc_quality", "gemini_native"]);
-const modeLabels: Record<string, string> = { gemini_vc_quality: "角色对话 · 转换声音", gemini_native: "Gemini 原声 · 对比体验" };
+const publicModes = new Set(["gemini_vc_quality", "gemini_native", "gpt_live_native"]);
+const modeLabels: Record<string, string> = { gemini_vc_quality: "角色对话 · 转换声音", gemini_native: "Gemini 原声 · 对比体验", gpt_live_native: "GPT-Live-1 · Echo 原声" };
 const isLocalPage = () => ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 const isAllowedPage = () => window.location.origin === PUBLIC_ORIGIN || isLocalPage();
 
@@ -41,11 +41,11 @@ const characters: { id: CharacterId; name: string; referenceLanguage: string; re
 ];
 const CharacterCapabilitySchema = z.object({ id: CharacterIdSchema, name: z.string(), reference_language: z.string(), gemini_voice: z.string(), available: z.boolean().optional().default(true) });
 type CharacterCapability = z.infer<typeof CharacterCapabilitySchema>;
-const ModeSchema = z.enum(["mic_vc", "gemini_vc", "gemini_native", "gemini_vc_quality"]);
+const ModeSchema = z.enum(["mic_vc", "gemini_vc", "gemini_native", "gemini_vc_quality", "gpt_live_native"]);
 const CapabilitySchema = z.object({ id: ModeSchema, label: z.string(), available: z.boolean(), reason: z.string().optional() });
 const ServerMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("capabilities"), modes: z.array(CapabilitySchema), character: z.string(), characters: z.array(CharacterCapabilitySchema).optional(), languages: z.array(LanguageSchema).optional(), source_voices: z.array(SourceVoiceSchema).optional() }),
-  z.object({ type: z.literal("ready"), mode: ModeSchema, model: z.string(), sample_rate: z.number(), character_id: CharacterIdSchema.optional(), language: LanguageSchema.optional(), source_voice: SourceVoiceSchema.optional() }),
+  z.object({ type: z.literal("ready"), mode: ModeSchema, model: z.string(), sample_rate: z.number(), character_id: CharacterIdSchema.optional(), language: LanguageSchema.optional(), source_voice: z.enum(["Schedar", "Iapetus", "Kore", "echo"]).optional() }),
   z.object({ type: z.literal("audio"), turn_id: z.string(), pcm: z.string().max(384000), sample_rate: z.number(), sequence: z.number().int().nonnegative() }),
   z.object({ type: z.literal("cancel"), turn_id: z.string() }),
   z.object({ type: z.literal("end"), turn_id: z.string() }),
@@ -66,7 +66,7 @@ export function LocalVoiceLab() {
   const [invite, setInvite] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("invite") ?? "");
   const connectionAttempt = useRef(0);
   const [phase, setPhase] = useState<Phase>("offline");
-  const [modes, setModes] = useState<Capability[]>([{ id: "gemini_vc_quality", label: "日语对话 · 转换声音", available: true }, { id: "gemini_native", label: "Gemini 原声 · 对比体验", available: true }]);
+  const [modes, setModes] = useState<Capability[]>([{ id: "gemini_vc_quality", label: "日语对话 · 转换声音", available: true }, { id: "gemini_native", label: "Gemini 原声 · 对比体验", available: true }, { id: "gpt_live_native", label: "GPT-Live-1 · Echo 原声", available: false, reason: "连接服务后检查 GPT-Live API 配置；此链路尚未完成真实通话验收。" }]);
   const [language, setLanguage] = useState<Language>("ja");
   const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
   const runningLanguage = useRef<Language>("ja");
@@ -75,7 +75,7 @@ export function LocalVoiceLab() {
   const runningCharacter = useRef<CharacterId>("ivan");
   const [sourceVoice, setSourceVoice] = useState<SourceVoice>("Schedar");
   const [availableSourceVoices, setAvailableSourceVoices] = useState<SourceVoice[]>([]);
-  const runningSourceVoice = useRef<SourceVoice>("Schedar");
+  const runningSourceVoice = useRef<SourceVoice | "echo">("Schedar");
   const [mode, setMode] = useState<Mode>("gemini_vc_quality");
   const [status, setStatus] = useState("点击连接体验服务，然后开始通话或文字试聊。");
   const [error, setError] = useState("");
@@ -122,6 +122,7 @@ export function LocalVoiceLab() {
   }
 
   function interrupt() {
+    if (runningMode.current === "gpt_live_native") return;
     audio.current?.playback.cancel();
     send({ type: "interrupt" });
     setStatus(runningMode.current === "mic_vc" ? "已清空旧声音；继续说话可重新试听。" : "已打断，继续说话。 ");
@@ -182,7 +183,24 @@ export function LocalVoiceLab() {
         } else if (message.type === "cancel") {
           audio.current?.playback.cancel(message.turn_id);
         } else if (message.type === "transcript") {
-          setTranscript((old) => [...old.slice(-39), { role: message.role, text: message.text }]);
+          setTranscript((old) => {
+            if (runningMode.current !== "gpt_live_native") return [...old.slice(-39), { role: message.role, text: message.text }];
+            const previous = old.at(-1);
+            // Live events are deltas, not completed turns. Append exact text
+            // without inserting spaces; keep at most 12k displayed characters.
+            const updated = previous?.role === message.role
+              ? [...old.slice(0, -1), { ...previous, text: (previous.text + message.text).slice(-12000) }]
+              : [...old, { role: message.role, text: message.text.slice(-12000) }];
+            let remaining = 12000;
+            const bounded: { role: string; text: string }[] = [];
+            for (let index = updated.length - 1; index >= 0 && remaining > 0; index--) {
+              const line = updated[index];
+              const text = line.text.slice(-remaining);
+              bounded.unshift({ role: line.role, text });
+              remaining -= text.length;
+            }
+            return bounded;
+          });
         } else if (message.type === "metrics") {
           setMetric(`${message.label}：${Math.round(message.first_output_ms)} ms`);
         } else if (message.type === "error") fail(message.message);
@@ -214,8 +232,8 @@ export function LocalVoiceLab() {
   }, []);
 
   async function start(withMicrophone = true) {
-    if (phase !== "idle" || !modes.some((entry) => entry.id === mode && entry.available) || !characterCapabilities.some((entry) => entry.id === characterId && entry.available) || !availableLanguages.includes(language) || !availableSourceVoices.includes(sourceVoice)) return;
-    if (!withMicrophone && mode === "mic_vc") return;
+    if (phase !== "idle" || !modes.some((entry) => entry.id === mode && entry.available) || (mode !== "gpt_live_native" && !characterCapabilities.some((entry) => entry.id === characterId && entry.available)) || !availableLanguages.includes(language) || (mode !== "gpt_live_native" && !availableSourceVoices.includes(sourceVoice))) return;
+    if (!withMicrophone && (mode === "mic_vc" || mode === "gpt_live_native")) return;
     referenceAudio.current?.pause();
     sourceBaselineAudio.current?.pause();
     reijiEarlyAudio.current?.pause();
@@ -225,7 +243,7 @@ export function LocalVoiceLab() {
     textInputOnly.current = !withMicrophone;
     runningCharacter.current = characterId;
     runningLanguage.current = language;
-    runningSourceVoice.current = sourceVoice;
+    runningSourceVoice.current = mode === "gpt_live_native" ? "echo" : sourceVoice;
     runningMode.current = mode; speech.current = { loud: 0, quiet: 0, armed: true };
     setPhase("starting"); setStatus(withMicrophone ? "等待麦克风授权…" : "正在连接实时语音…"); setError(""); setMetric(null); setPlaybackMs(null); setTranscript([]);
     setUnderruns({ count: 0, milliseconds: 0 });
@@ -258,7 +276,7 @@ export function LocalVoiceLab() {
         if (ws?.readyState !== WebSocket.OPEN) return;
         if (ws.bufferedAmount > 64000) { fail("麦克风发送积压超过 2 秒，已停止。"); return; }
         ws.send(pcm);
-        if (runningMode.current !== "mic_vc") {
+        if (runningMode.current !== "mic_vc" && runningMode.current !== "gpt_live_native") {
           const vad = speech.current;
           if (rms > 0.035) { vad.loud++; vad.quiet = 0; } else { vad.loud = 0; vad.quiet++; }
           if (vad.quiet >= 15) vad.armed = true;
@@ -266,7 +284,7 @@ export function LocalVoiceLab() {
         }
       };
       if (source && node && silent) { source.connect(node); node.connect(silent); silent.connect(context.destination); }
-      send({ type: "start", mode, character_id: characterId, language, source_voice: sourceVoice });
+      send({ type: "start", mode, character_id: characterId, language, source_voice: runningSourceVoice.current });
       startupTimeout.current = setTimeout(() => {
         if (revision.current === attempt && !ready.current) fail("语音服务连接超过 30 秒，已停止。可重新连接后再试。");
       }, 30000);
@@ -320,9 +338,9 @@ export function LocalVoiceLab() {
   const officialComparison = officialComparisons.find((entry) => entry.characterId === characterId && entry.language === language);
   const character = characters.find((entry) => entry.id === characterId)!;
   const characterCapability = characterCapabilities.find((entry) => entry.id === characterId);
-  const characterAvailable = characterCapability?.available === true;
+  const characterAvailable = mode === "gpt_live_native" || characterCapability?.available === true;
   const geminiVoiceLabel = sourceVoices.find((entry) => entry.id === sourceVoice)!.label;
-  const sourceVoiceAvailable = availableSourceVoices.includes(sourceVoice);
+  const sourceVoiceAvailable = mode === "gpt_live_native" || availableSourceVoices.includes(sourceVoice);
   const languageAvailable = availableLanguages.includes(language);
   const languageLabel = languageLabels[language];
   const selected = modes.find((entry) => entry.id === mode);
@@ -344,7 +362,7 @@ export function LocalVoiceLab() {
       <p className="eyebrow mt-4 text-muted-foreground">{character.name}</p>
       <h1 className="mt-2 font-display text-2xl">语音体验</h1>
       <p className="mt-3 text-sm text-muted-foreground">直接和角色说话，或输入文字听回复。建议戴耳机；一次仅支持一人通话。</p>
-      <section className="mt-4 rounded-xl border border-border bg-background p-4" data-testid="source-voice-settings">
+      {mode !== "gpt_live_native" && <section className="mt-4 rounded-xl border border-border bg-background p-4" data-testid="source-voice-settings">
         <h2 className="text-sm font-medium">Gemini 基础声源</h2>
         <p className="mt-1 text-xs text-muted-foreground">选择变声前的声音，用于下一次通话；角色的目标音色参考不变。</p>
         <label htmlFor="source-voice" className="mt-3 block text-sm text-muted-foreground">基础声音</label>
@@ -361,7 +379,12 @@ export function LocalVoiceLab() {
         <p className="mt-2 text-xs text-muted-foreground">固定台词试听，未经 MeanVC2。实际对话的语气和节奏会随内容变化。</p>
         {baselineError && <p className="mt-2 text-xs text-destructive">基准音频加载失败，请刷新重试。</p>}
         {busy && <p className="mt-2 text-xs text-muted-foreground">结束本次通话后可更换基础声音。</p>}
-      </section>
+      </section>}
+      {mode === "gpt_live_native" && <section className="mt-4 rounded-xl border border-border bg-background p-4" data-testid="gpt-live-source">
+        <h2 className="text-sm font-medium">GPT-Live-1 · Echo</h2>
+        <p className="mt-2 text-sm">原生连续语音，收听与输出同时进行；本模式不经过 MeanVC2。</p>
+        <p className="mt-2 text-xs text-muted-foreground">需要麦克风。听说切换由模型处理，不按本机音量自动打断；结束后可切换模式。</p>
+      </section>}
       <section className="mt-4 rounded-xl border border-border bg-background p-4" aria-labelledby="character-original-voice-heading">
         <h2 id="character-original-voice-heading" className="text-sm font-medium">{character.name} 原声 · {character.referenceLanguage}</h2>
         <p className="mt-1 text-xs text-muted-foreground">这是本次转换使用的角色音色参考，可以对比声音是否相像。</p>
@@ -419,15 +442,16 @@ export function LocalVoiceLab() {
         {modes.map((entry) => <div key={entry.id} className="flex flex-col gap-1">
           <Button variant={entry.id === mode ? "default" : "outline"} disabled={!entry.available || busy} onClick={() => setMode(entry.id)} aria-pressed={entry.id === mode}>{entry.id === "gemini_vc_quality" ? `${languageLabel}对话 · 流式转换` : modeLabels[entry.id] ?? entry.label}{!entry.available ? " · 暂不可用" : ""}</Button>
           {entry.id === "gemini_vc_quality" && <p className="text-xs text-muted-foreground">Gemini Live 使用 {geminiVoiceLabel} 生成{languageLabel}，经 MeanVC2 流式转换声音。</p>}
+          {entry.id === "gpt_live_native" && <p className="text-xs text-muted-foreground">连续麦克风输入与 Echo 原声输出。协议适配已实现；真实全双工体验仍待 API 验收。</p>}
           {!entry.available && entry.reason && <p className="text-xs text-muted-foreground">{entry.reason}</p>}
         </div>)}
       </div>
-      <p className="mt-4 text-sm text-muted-foreground" data-testid="local-voice-scope">{mode === "gemini_vc_quality" ? "当前版本仍在验证音色相似度和连续对话效果，欢迎直接试听反馈。" : `直接听 Gemini Live 的 ${geminiVoiceLabel}，不经过变声。`}</p>
+      <p className="mt-4 text-sm text-muted-foreground" data-testid="local-voice-scope">{mode === "gpt_live_native" ? "GPT-Live-1 / Echo 独立原声实验，尚未接入角色变声或视频嘴型。" : mode === "gemini_vc_quality" ? "当前版本仍在验证音色相似度和连续对话效果，欢迎直接试听反馈。" : `直接听 Gemini Live 的 ${geminiVoiceLabel}，不经过变声。`}</p>
       {phase === "offline" && !isLocalPage() && <div className="mt-4"><Input aria-label="体验码" type="password" value={invite} onChange={(event) => setInvite(event.target.value)} placeholder="体验码（完整邀请链接会自动填写）" autoComplete="off" /></div>}
       <div className="mt-6 flex flex-wrap gap-3">
         {phase === "offline" ? <Button onClick={() => void connect()}>连接体验服务</Button> : <Button onClick={() => void start()} disabled={phase !== "idle" || !selected?.available || !characterAvailable || !languageAvailable || !sourceVoiceAvailable} data-testid="local-voice-start">{phase === "starting" ? "连接中…" : mode === "mic_vc" ? "开始试听" : "开始通话"}</Button>}
-        {mode !== "mic_vc" && <Button variant="secondary" onClick={() => void start(false)} disabled={phase !== "idle" || !selected?.available || !characterAvailable || !languageAvailable || !sourceVoiceAvailable} data-testid="local-voice-text-start">先用文字试聊</Button>}
-        <Button variant="secondary" onClick={interrupt} disabled={phase !== "live"} data-testid="local-voice-interrupt">打断 / 清空播放</Button>
+        {mode !== "mic_vc" && mode !== "gpt_live_native" && <Button variant="secondary" onClick={() => void start(false)} disabled={phase !== "idle" || !selected?.available || !characterAvailable || !languageAvailable || !sourceVoiceAvailable} data-testid="local-voice-text-start">先用文字试聊</Button>}
+        {mode !== "gpt_live_native" && <Button variant="secondary" onClick={interrupt} disabled={phase !== "live"} data-testid="local-voice-interrupt">打断 / 清空播放</Button>}
         <Button variant="outline" onClick={stop} disabled={phase === "offline" || phase === "checking"} data-testid="local-voice-stop">结束</Button>
       </div>
       {phase === "idle" && !characterAvailable && <p className="mt-3 text-sm text-destructive">此角色暂未就绪，请稍后重新连接。</p>}
@@ -438,13 +462,14 @@ export function LocalVoiceLab() {
       {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
       {model && <p className="mt-3 text-xs text-muted-foreground">当前引擎：{model}</p>}
     </section>
-    {mode !== "mic_vc" && <section className="rounded-2xl border border-border bg-card p-4">
+    {mode !== "mic_vc" && mode !== "gpt_live_native" && <section className="rounded-2xl border border-border bg-card p-4">
       <form className="flex gap-3" onSubmit={(event) => { event.preventDefault(); if (text.trim() && ready.current) { interrupt(); send({ type: "text", text: text.trim() }); setText(""); } }}>
         <Input aria-label="文字消息" value={text} onChange={(event) => setText(event.target.value)} placeholder={`也可以输入一句${languageLabel}`} maxLength={2000} disabled={phase !== "live"} />
         <Button type="submit" disabled={phase !== "live" || !text.trim()}>发送</Button>
       </form>
       <div className="mt-4 flex max-h-64 flex-col gap-2 overflow-y-auto text-sm" aria-live="polite">{transcript.map((line, index) => <p key={index}><span className="text-muted-foreground">{line.role === "user" ? "你" : character.name}：</span>{line.text}</p>)}</div>
     </section>}
+    {mode === "gpt_live_native" && <div className="flex max-h-64 flex-col gap-2 overflow-y-auto text-sm" aria-live="polite">{transcript.map((line, index) => <p key={index}><span className="text-muted-foreground">{line.role === "user" ? "你" : character.name}：</span>{line.text}</p>)}</div>}
     <details className="text-xs text-muted-foreground" aria-label="实测信息"><summary className="cursor-pointer">本次体验的等待与播放数据</summary>
       {metric && <p>{metric}</p>}
       {playbackMs !== null && <p>首个音频包抵达 → 浏览器安排播放：约 {playbackMs} ms（含 200 ms 播放缓冲；不含硬件输出延迟）</p>}

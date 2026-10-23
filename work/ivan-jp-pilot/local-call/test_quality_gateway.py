@@ -6,8 +6,11 @@ Run using the MeanVC2 venv Python with unittest discovery in this directory.
 import asyncio
 import base64
 import importlib.util
+import os
 from pathlib import Path
 import sys
+import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 import wave
@@ -24,6 +27,9 @@ gateway = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gateway)
 import google_session
 from gemini_bridge import NativeAudioBridge
+sys.path.insert(0, str(HERE.parents[2]))
+import configure
+import configure_openai
 
 
 def provider_audio(complete=True):
@@ -92,6 +98,23 @@ class GatewayContracts(unittest.IsolatedAsyncioTestCase):
         self.voice_server = TestServer(voice_app)
         await self.voice_server.start_server()
         self.provider_calls = []
+        self.openai_calls, self.openai_events = [], []
+        self.openai_error = None
+        self.settings = {'GEMINI_API_KEY':'unit-test-only', 'GEMINI_LIVE_MODEL':'fake'}
+
+        async def fake_openai_provider(**kwargs):
+            self.openai_calls.append(kwargs)
+            if self.openai_error:
+                raise self.openai_error
+            kwargs['on_ready']()
+            sequence = 0
+            async for event in kwargs['user_events']:
+                self.openai_events.append(event)
+                if event['kind'] == 'audio':
+                    kwargs['on_audio']('gpt-stream', event['pcm_s16le'],
+                                      {'sample_rate':16000,'channels':1,'output_sequence':sequence})
+                    sequence += 1
+                    kwargs['on_transcript']('assistant', 'test transcript')
 
         async def fake_provider(**kwargs):
             self.provider_calls.append(kwargs)
@@ -114,10 +137,11 @@ class GatewayContracts(unittest.IsolatedAsyncioTestCase):
 
         self.patches = [
             patch.object(gateway, 'VC_URL', str(self.voice_server.make_url('')).rstrip('/')),
-            patch.object(gateway, 'config', lambda: {'GEMINI_API_KEY': 'unit-test-only', 'GEMINI_LIVE_MODEL': 'fake'}),
+            patch.object(gateway, 'config', lambda: self.settings),
             patch.object(gateway, 'google_ready', lambda settings: (True, 'test only')),
             patch.object(gateway, 'persona', lambda character_id='ivan', language='ja': 'test persona ' + character_id),
             patch.object(google_session, 'run_google_live', fake_provider),
+            patch.dict(sys.modules, {'openai_live':SimpleNamespace(run_openai_live=fake_openai_provider)}),
         ]
         for item in self.patches: item.start()
         self.client = TestClient(TestServer(gateway.make_app(['http://127.0.0.1:33330'])))
@@ -173,6 +197,104 @@ class GatewayContracts(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(self.provider_calls)
             self.assertFalse(self.voice.starts)
             await ws.close()
+
+    async def test_gpt_live_requires_separate_key_and_never_uses_gemini_key(self):
+        ws, caps = await self.connect()
+        self.assertFalse(caps['gpt_live_native']['available'])
+        self.assertIn('GPT Live 测试 API Key', caps['gpt_live_native']['reason'])
+        self.assertTrue(caps['gemini_native']['available'])
+        await ws.send_json({'type':'start', 'mode':'gpt_live_native'})
+        error, _ = await self.until(ws, 'error')
+        self.assertIn('GPT Live 测试 API Key', error['message'])
+        self.assertFalse(self.openai_calls)
+        self.assertFalse(self.provider_calls)
+        self.assertFalse(self.client.server.app[gateway.ACTIVE_KEY])
+        await ws.close()
+
+    async def test_gpt_live_uses_fixed_model_echo_and_pcm16k_without_converter(self):
+        self.settings.update({'OPENAI_LIVE_API_KEY':'live-test-only', 'OPENAI_API_KEY':'fallback-test-only',
+                              'OPENAI_LIVE_URL':'ws://127.0.0.1:9988/live/sessions'})
+        # Native GPT Live is available independently of the local converter.
+        with patch.object(gateway, 'voice_health', side_effect=RuntimeError('offline')):
+            ws, caps = await self.connect()
+            self.assertTrue(caps['gpt_live_native']['available'])
+            await ws.send_json({'type':'start', 'mode':'gpt_live_native', 'character_id':'koharu',
+                               'language':'en', 'source_voice':'echo', 'model':'client-cannot-override'})
+            ready, _ = await self.until(ws, 'ready')
+        self.assertEqual(ready, {'type':'ready','mode':'gpt_live_native','character_id':'koharu',
+                                'language':'en','source_voice':'echo','model':'gpt-live-1','sample_rate':16000})
+        provider = self.openai_calls[-1]
+        self.assertEqual(provider['api_key'], 'live-test-only')
+        self.assertEqual(provider['ws_url'], 'ws://127.0.0.1:9988/live/sessions')
+        self.assertEqual(provider['model'], 'gpt-live-1')
+        self.assertEqual(provider['voice_name'], 'echo')
+        self.assertEqual(provider['language'], 'en')
+        self.assertEqual(provider['persona_instructions'], 'test persona koharu')
+        self.assertNotIn('vc_sink', provider)
+        pcm = b'\x01\x00' * 640
+        await ws.send_bytes(pcm)
+        audio, _ = await self.until(ws, 'audio')
+        self.assertEqual(audio['sample_rate'], 16000)
+        self.assertEqual(base64.b64decode(audio['pcm']), pcm)
+        self.assertEqual(audio['sequence'], 0)
+        transcript, _ = await self.until(ws, 'transcript')
+        self.assertEqual(transcript['text'], 'test transcript')
+        self.assertEqual(self.openai_events[0]['sample_rate'], 16000)
+        self.assertFalse(self.voice.starts)
+        self.assertFalse(self.provider_calls)
+        await ws.close()
+
+    async def test_gpt_live_defaults_echo_and_official_url_with_fallback_key(self):
+        self.settings['OPENAI_API_KEY'] = 'fallback-test-only'
+        ws, _ = await self.connect()
+        await ws.send_json({'type':'start','mode':'gpt_live_native'})
+        ready, _ = await self.until(ws, 'ready')
+        self.assertEqual(ready['source_voice'], 'echo')
+        provider = self.openai_calls[-1]
+        self.assertEqual(provider['api_key'], 'fallback-test-only')
+        self.assertEqual(provider['ws_url'], 'wss://api.openai.com/v1/live/sessions')
+        await ws.close()
+
+    async def test_gpt_live_rejects_other_voices_before_starting_provider(self):
+        self.settings['OPENAI_LIVE_API_KEY'] = 'live-test-only'
+        ws, _ = await self.connect()
+        for voice in ['Schedar', 'Kore', 'Echo', None, {'voice':'echo'}]:
+            await ws.send_json({'type':'start','mode':'gpt_live_native','source_voice':voice})
+            error, _ = await self.until(ws, 'error')
+            self.assertIn('仅支持 Echo', error['message'])
+            self.assertFalse(self.openai_calls)
+            self.assertFalse(self.client.server.app[gateway.ACTIVE_KEY])
+        await ws.close()
+
+    async def test_gpt_live_rejects_text_interrupt_and_preserves_single_active_session(self):
+        self.settings['OPENAI_LIVE_API_KEY'] = 'live-test-only'
+        ws, _ = await self.connect()
+        await ws.send_json({'type':'start','mode':'gpt_live_native'})
+        await self.until(ws, 'ready')
+        for event in [{'type':'text','text':'do not forward'}, {'type':'interrupt'}]:
+            await ws.send_json(event)
+            error, _ = await self.until(ws, 'error')
+            self.assertIn('GPT Live', error['message'])
+            self.assertFalse(self.openai_events)
+        second, _ = await self.connect()
+        await second.send_json({'type':'start','mode':'gpt_live_native'})
+        error, _ = await self.until(second, 'error')
+        self.assertIn('另一个本地通话', error['message'])
+        self.assertEqual(len(self.openai_calls), 1)
+        await second.close()
+        await ws.close()
+
+    async def test_gpt_live_provider_failure_does_not_leak_key_or_url(self):
+        self.settings['OPENAI_LIVE_API_KEY'] = 'secret-test-value'
+        self.openai_error = RuntimeError('secret-test-value wss://private.example/credential')
+        ws, _ = await self.connect()
+        await ws.send_json({'type':'start','mode':'gpt_live_native'})
+        error, seen = await self.until(ws, 'error')
+        self.assertNotIn('secret-test-value', str(seen))
+        self.assertNotIn('private.example', str(seen))
+        self.assertFalse(any(event['type'] == 'ready' for event in seen))
+        self.assertIn('API 权限', error['message'])
+        await ws.close()
 
     async def test_quality_two_turns_retain_mode_and_reset_output_sequence(self):
         ws, caps = await self.connect()
@@ -358,6 +480,37 @@ class GatewayContracts(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.voice.starts)
         self.assertIsNone(self.provider_calls[0]['vc_sink'])
         await ws.close()
+
+
+class ConfigurationContracts(unittest.TestCase):
+    def test_provider_configuration_preserves_other_provider_and_file_permissions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / '.env.local'
+            with patch.object(configure, 'SETTINGS_PATH', path):
+                configure.save_settings({'GEMINI_API_KEY':'google-test', 'GEMINI_LIVE_MODEL':'fake-google'})
+                configure.save_settings({'OPENAI_LIVE_API_KEY':'openai-test',
+                                         'OPENAI_LIVE_URL':configure_openai.DEFAULT_URL})
+                configure.save_settings({'GEMINI_API_KEY':'google-replacement'})
+            saved = path.read_text()
+            self.assertIn('OPENAI_LIVE_API_KEY=openai-test', saved)
+            self.assertIn('GEMINI_LIVE_MODEL=fake-google', saved)
+            self.assertEqual(saved.count('GEMINI_API_KEY='), 1)
+            self.assertIn('GEMINI_API_KEY=google-replacement', saved)
+            if os.name != 'nt':
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            with patch.object(gateway, 'HERE', Path(temporary)), patch.dict(os.environ, {}, clear=True):
+                values = gateway.config()
+            self.assertEqual(values['OPENAI_LIVE_API_KEY'], 'openai-test')
+            self.assertEqual(values['GEMINI_API_KEY'], 'google-replacement')
+
+    def test_openai_configuration_url_rejects_insecure_or_credential_urls(self):
+        for url in [configure_openai.DEFAULT_URL, 'ws://127.0.0.1:9876/live', 'ws://[::1]:9876/live']:
+            self.assertEqual(configure_openai.validate_url(url), url)
+        for url in ['ws://example.com/live', 'https://api.openai.com/live',
+                    'wss://user:secret@example.com/live', 'wss://api.openai.com/live?token=secret',
+                    'wss://api.openai.com/live#secret', 'wss://api.openai.com:99999/live', '']:
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                configure_openai.validate_url(url)
 
 
 if __name__ == '__main__':

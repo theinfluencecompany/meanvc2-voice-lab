@@ -16,7 +16,7 @@ from pathlib import Path
 
 from aiohttp import ClientSession, ClientTimeout, WSMsgType, WSServerHandshakeError
 
-ALLOWED_MODES = frozenset({'gemini_vc_quality', 'gemini_native'})
+ALLOWED_MODES = frozenset({'gemini_vc_quality', 'gemini_native', 'gpt_live_native'})
 
 
 def load_token(path: Path) -> str:

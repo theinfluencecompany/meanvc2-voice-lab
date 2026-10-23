@@ -52,8 +52,8 @@ test('no host and occupied session are refused without upgrading', async () => {
   relay.finishSession();
 });
 
-test('only two supported modes and bounded dialogue controls are accepted', () => {
-  for (const mode of ['gemini_native', 'gemini_vc_quality']) {
+test('only supported modes and bounded dialogue controls are accepted', () => {
+  for (const mode of ['gemini_native', 'gemini_vc_quality', 'gpt_live_native']) {
     assert.deepEqual(JSON.parse(validateClientText(JSON.stringify({ type: 'start', mode, apiKey: 'discard' }))), { type: 'start', mode });
   }
   assert.throws(() => validateClientText(JSON.stringify({ type: 'start', mode: 'legacy_stream' })));
@@ -118,6 +118,16 @@ test('selected source voice survives relay and unsupported values are refused', 
   for (const source_voice of ['echo', '', null, {}, ['Kore']]) {
     assert.throws(() => validateClientText(JSON.stringify({ type: 'start', mode: 'gemini_native', source_voice })), /invalid source voice/);
   }
+});
+
+test('Echo is accepted only for GPT Live and preserved across relay', () => {
+  const start = { type: 'start', mode: 'gpt_live_native', character_id: 'reiji', language: 'ja', source_voice: 'echo' };
+  const { relay, host, client } = connected();
+  client.receive(JSON.stringify(start));
+  assert.deepEqual(JSON.parse(host.json().at(-1).data), start);
+  relay.finishSession();
+  assert.throws(() => validateClientText(JSON.stringify({ ...start, source_voice: 'Schedar' })), /invalid source voice/);
+  assert.throws(() => validateClientText(JSON.stringify({ ...start, mode: 'gemini_native' })), /invalid source voice/);
 });
 
 test('legacy start stays compatible and unknown or path-based character selections are rejected', () => {

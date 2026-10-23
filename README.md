@@ -14,6 +14,7 @@ Gemini Live → MeanVC2 流式变声的独立实验工具。提供角色原声�
 - 日语、英语通话和固定样音。
 - Gemini 基础声源可选 Schedar、Iapetus、Kore，每种均附日英基准原声。
 - Gemini 原声对照、MeanVC2 流式转换、文字试聊、麦克风输入及打断。
+- 开发分支新增可选 GPT-Live-1 / Echo 原声适配；缺少专用 API 配置时保持不可用。尚未完成真实 API 与听感验收，不经过 MeanVC2。
 - 可选 Cloudflare Worker 中转；MeanVC2 始终在运行 Python 服务的电脑 CPU 上执行。
 
 ```text
@@ -58,6 +59,21 @@ python3.11 start.py
 
 页面操作：选角色和语言 → 选基础声音并试听 → 连接体验服务 → 开始通话或先用文字试聊。通话结束后可重新选择基础声音。
 
+### GPT-Live-1 / Echo 开发入口
+
+见 [官方协议与实现边界](docs/gpt-live1-protocol.md) 及 [连续变声的后续验收](docs/continuous-voice-conversion.md)。这是独立原声模式，需要有 GPT-Live-1 权限的 API Key；现有 Gemini Key、ChatGPT 订阅不能替代该配置。配置方法以 `configure_openai.py` 的提示为准，凭据只写入本地 `.env.local`。
+
+该模式持续发送麦克风（包括静音），并行接收 Echo 音频；不以本地音量检测切断会话，不借用 Gemini 的句末事件。当前仅支持语音输入，不把文字消息伪装成用户语音。缺少凭据时页面只显示不可用入口，不能据此声称已经体验过全双工。
+
+取得权限后，可显式运行一次约20秒的计费API检查：
+
+```bash
+python3.11 configure_openai.py
+.venv/bin/python probe_openai_live.py --input-wav web/public/source-voices/Schedar-ja.wav --seconds 20
+```
+
+该脚本按真实速度发送录音及其后的静音，保存Echo原声和会话记录到被Git忽略的`runtime/openai-live-probe/`。即使收到音频，也还需要真人重叠说话验收，不能将录音回放结果冒充真实对话效果。
+
 ## 可选：分享公网体验
 
 见 [Cloudflare 部署说明](cloudflare/README.md)。Cloudflare 只托管静态页面和转发音频，**不会替你提供 MeanVC2 算力**。这个仓库没有包含现有体验站的访问凭证，也不会自动连到原作者的电脑。
@@ -70,6 +86,7 @@ npm --prefix web run build
 node --test cloudflare/worker.test.mjs
 .venv/bin/python -m unittest discover -s work/ivan-jp-pilot/local-call -p test_quality_gateway.py
 .venv/bin/python -m unittest discover -s work/ivan-jp-pilot/live-source -p test_gemini_bridge.py
+.venv/bin/python -m unittest discover -s work/ivan-jp-pilot/live-source -p test_openai_live.py
 .venv/bin/python -m unittest discover -s cloudflare -p test_local_bridge.py
 .venv/bin/python work/ivan-jp-pilot/voice-service/check_portable.py
 ```
@@ -78,7 +95,7 @@ Windows 把 `.venv/bin/python` 换成 `.venv\Scripts\python.exe`。前几项验�
 
 ## 已知限制和样音来源
 
-- 当前为语音实验，没有视频嘴型、LiveKit、Prelulu 生产接入或 GPT-Live 全双工模式。
+- 当前为语音实验，没有视频嘴型、LiveKit 或 Prelulu 生产接入。GPT-Live-1 / Echo 处于独立协议适配阶段，尚未完成真实全双工对话验收。
 - 一次支持一个公网通话。本机延迟不等于生产端到端延迟。
 - 流式适配采用已到达的语音特征和分块声码器，不能保证与整段转换相同。源码中的 `prefix_quality` 是实验模式名称，不是音质保证。
 - 久世的早期整段英文样本采用 Breeze Neo 源音；当前流式录音采用 Gemini Live，台词也不同。它们不是严格的同源控制变量实验。

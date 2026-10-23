@@ -1,4 +1,4 @@
-const MODES = new Set(['gemini_vc_quality', 'gemini_native']);
+const MODES = new Set(['gemini_vc_quality', 'gemini_native', 'gpt_live_native']);
 const CHARACTERS = new Set(['ivan', 'saku', 'koharu', 'love', 'reiji']);
 const LANGUAGES = new Set(['ja', 'en']);
 const SOURCE_VOICES = new Set(['Schedar', 'Iapetus', 'Kore']);
@@ -41,7 +41,7 @@ export function validateClientText(raw) {
       if (!MODES.has(value.mode)) throw new Error('invalid mode');
       if (value.character_id !== undefined && !CHARACTERS.has(value.character_id)) throw new Error('invalid character');
       if (value.language !== undefined && !LANGUAGES.has(value.language)) throw new Error('invalid language');
-      if (value.source_voice !== undefined && !SOURCE_VOICES.has(value.source_voice)) throw new Error('invalid source voice');
+      if (value.source_voice !== undefined && (value.mode === 'gpt_live_native' ? value.source_voice !== 'echo' : !SOURCE_VOICES.has(value.source_voice))) throw new Error('invalid source voice');
       return JSON.stringify({ type: 'start', mode: value.mode,
         ...(value.character_id === undefined ? {} : { character_id: value.character_id }),
         ...(value.language === undefined ? {} : { language: value.language }),
