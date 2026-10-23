@@ -1,0 +1,20 @@
+{
+  "description": "Official speaker extraction for this character, with unchanged accepted prefix RNG state and inference policy.",
+  "upstream_commit": "13acf84c1bf135ea5edad9c245b345289b06b33e",
+  "seed": 42,
+  "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+  "speaker_embedding_asset": "official-speaker.npy",
+  "speaker_model_sha256": "51f07e3b94d9e0262a6a675ef5a087be3dd09e8c62e9d886827f44f82fe7f94b",
+  "reference": {
+    "source": "outputs/meanvc2-share-20261023/characters/reiji/reference.16k.wav",
+    "sha256": "249ea877a83c0dfe194c90451f97f92ead2f3c926467c6c5c0c4c20302e364d7"
+  },
+  "assets": {
+    "official-speaker.npy": {
+      "sha256": "2e2d79348ea7fca1c3ab480b288137eeb85c66a9832d3d4c0cc74fa71d1b9ea7"
+    },
+    "cli-inference-rng.pt": {
+      "sha256": "7228b505061107019424f2baf98302ff3283b4726fbc22434f39e056bd3b4439"
+    }
+  }
+}

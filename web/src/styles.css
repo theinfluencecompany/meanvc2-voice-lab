@@ -1,0 +1,27 @@
+@import "tailwindcss";
+@theme {
+  --color-background: #f8f8fa;
+  --color-foreground: #25242d;
+  --color-card: #ffffff;
+  --color-border: #e5e4eb;
+  --color-muted-foreground: #77737f;
+  --color-destructive: #bd2b48;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --shadow-e1: 0 2px 12px rgb(30 20 60 / 0.04);
+}
+:root { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #25242d; background: #f8f8fa; line-height: 1.55; font-synthesis: none; }
+body { margin: 0; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.5; }
+.ui-button { border-radius: 10px; padding: 10px 16px; border: 1px solid transparent; font-size: 14px; font-weight: 550; transition: background .15s; }
+.ui-button-default { background: #7c4bce; color: white; }
+.ui-button-default:hover:not(:disabled) { background: #683db1; }
+.ui-button-secondary { background: #efebf7; color: #574473; }
+.ui-button-outline { background: #fff; border-color: #ddd9e5; color: #413747; }
+.ui-button:focus-visible, .ui-input:focus-visible { outline: 3px solid #c4abe9; outline-offset: 2px; }
+.ui-badge { border-radius: 999px; padding: 4px 10px; font-size: 12px; background: #efebf7; color: #665277; white-space: nowrap; }
+.ui-input { width: 100%; min-width: 0; background: white; border: 1px solid #ddd9e5; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.ui-input:disabled { opacity: .55; }
+audio { display: block; }
+.eyebrow { letter-spacing: .06em; font-size: 12px; text-transform: uppercase; }

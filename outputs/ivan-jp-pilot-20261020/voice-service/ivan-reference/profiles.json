@@ -1,0 +1,51 @@
+{
+  "ivan-en-v1": {
+    "label": "Ivan Volkov",
+    "reference_quality_status": "pending_listening",
+    "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+    "production_enabled": false,
+    "reference_path": "outputs/ivan-jp-pilot-20261020/audio/ivan-fish-reference-en.16k.wav",
+    "embedding_path": "outputs/ivan-jp-pilot-20261020/voice-service/ivan-reference/embedding.npy",
+    "receipt_path": "outputs/ivan-jp-pilot-20261020/voice-service/ivan-reference/reference.json"
+  },
+  "saku-ja-v1": {
+    "label": "朝霧 朔",
+    "reference_quality_status": "source_selected_by_user; converted_voice_pending_listening",
+    "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+    "production_enabled": false,
+    "reference_path": "outputs/meanvc2-share-20261023/characters/saku/reference.16k.wav",
+    "embedding_path": "outputs/meanvc2-share-20261023/characters/saku/embedding.npy",
+    "receipt_path": "outputs/meanvc2-share-20261023/characters/saku/reference.json",
+    "prefix_assets_manifest": "outputs/meanvc2-share-20261023/characters/saku/prefix-assets/manifest.json"
+  },
+  "koharu-ja-v1": {
+    "label": "柚木 こはる",
+    "reference_quality_status": "source_selected_by_user; converted_voice_pending_listening",
+    "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+    "production_enabled": false,
+    "reference_path": "outputs/meanvc2-share-20261023/characters/koharu/reference.16k.wav",
+    "embedding_path": "outputs/meanvc2-share-20261023/characters/koharu/embedding.npy",
+    "receipt_path": "outputs/meanvc2-share-20261023/characters/koharu/reference.json",
+    "prefix_assets_manifest": "outputs/meanvc2-share-20261023/characters/koharu/prefix-assets/manifest.json"
+  },
+  "love-ja-v1": {
+    "label": "月見 灯",
+    "reference_quality_status": "source_selected_by_user; converted_voice_pending_listening",
+    "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+    "production_enabled": false,
+    "reference_path": "outputs/meanvc2-share-20261023/characters/love/reference.16k.wav",
+    "embedding_path": "outputs/meanvc2-share-20261023/characters/love/embedding.npy",
+    "receipt_path": "outputs/meanvc2-share-20261023/characters/love/reference.json",
+    "prefix_assets_manifest": "outputs/meanvc2-share-20261023/characters/love/prefix-assets/manifest.json"
+  },
+  "reiji-ja-v1": {
+    "label": "久世 怜司",
+    "reference_quality_status": "source_selected_by_user; converted_voice_pending_listening",
+    "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+    "production_enabled": false,
+    "reference_path": "outputs/meanvc2-share-20261023/characters/reiji/reference.16k.wav",
+    "embedding_path": "outputs/meanvc2-share-20261023/characters/reiji/embedding.npy",
+    "receipt_path": "outputs/meanvc2-share-20261023/characters/reiji/reference.json",
+    "prefix_assets_manifest": "outputs/meanvc2-share-20261023/characters/reiji/prefix-assets/manifest.json"
+  }
+}

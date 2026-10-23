@@ -1,0 +1,14 @@
+{
+  "reference_sha256": "81d2eb9ab2f3f54014355fca906e2302905829261eb53722a376e6510ae8be4a",
+  "embedding_sha256": "250fa4d14545807eb654810469332632073ab48c85f96572a1ba00edc018351b",
+  "shape": [
+    1,
+    256
+  ],
+  "dtype": "torch.float32",
+  "reference_duration_s": 13.9755,
+  "speaker_model_sha256": "51f07e3b94d9e0262a6a675ef5a087be3dd09e8c62e9d886827f44f82fe7f94b",
+  "speaker_config_sha256": "aade57d9ff18f7266a712329ebf9e15cb71d761fe7031fb1b90290d5cd421abe",
+  "speaker_code_sha256": "8ce63b470dbacc31a573024d2248861479747cb61edee6efada95fba5067cc0e",
+  "method": "unmodified upstream speaker extraction; CPU single thread"
+}

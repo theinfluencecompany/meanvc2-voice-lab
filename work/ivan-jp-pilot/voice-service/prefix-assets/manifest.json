@@ -1,0 +1,17 @@
+{
+  "description": "Frozen inputs that produced the user-accepted prefix1280 experiment; no audio source or secrets stored.",
+  "upstream_commit": "13acf84c1bf135ea5edad9c245b345289b06b33e",
+  "seed": 42,
+  "reference": {
+    "source": "outputs/ivan-jp-pilot-20261020/audio/ivan-fish-reference-en.16k.wav",
+    "sha256": "81d2eb9ab2f3f54014355fca906e2302905829261eb53722a376e6510ae8be4a"
+  },
+  "assets": {
+    "cli-inference-rng.pt": {
+      "sha256": "7228b505061107019424f2baf98302ff3283b4726fbc22434f39e056bd3b4439"
+    },
+    "ivan-official-speaker.npy": {
+      "sha256": "f69e779c230fef2ba112d4c9a67167541e16f94f4a1b424d90b4f79b1390a534"
+    }
+  }
+}

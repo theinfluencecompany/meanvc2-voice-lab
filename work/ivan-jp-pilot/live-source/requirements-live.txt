@@ -1,0 +1,2 @@
+# Optional live provider SDK; install only in the isolated project runtime.
+google-genai==2.32.0

@@ -1,0 +1,182 @@
+[
+  {
+    "characterId": "ivan",
+    "language": "ja",
+    "sameText": true,
+    "transcript": "こんにちは。今日も会えてうれしい。少し話そうか。",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。本次 MeanVC2 流式转换使用 Gemini Live Schedar 基础声源，转换参数保持不变。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-ivan-ja.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-ivan-ja-schedar.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Schedar"
+  },
+  {
+    "characterId": "ivan",
+    "language": "en",
+    "sameText": true,
+    "transcript": "Hello, it's good to see you again. How was your day?",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。本次 MeanVC2 流式转换使用 Gemini Live Schedar 基础声源，转换参数保持不变。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-ivan-en.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-ivan-en-schedar.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Schedar"
+  },
+  {
+    "characterId": "saku",
+    "language": "ja",
+    "sameText": false,
+    "transcript": "こんにちは。今日も会えてうれしい。少し話そうか。",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。本次 MeanVC2 流式转换使用 Gemini Live Schedar 基础声源，转换参数保持不变。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-saku-ja.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-saku-ja-schedar.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Schedar"
+  },
+  {
+    "characterId": "saku",
+    "language": "en",
+    "sameText": false,
+    "transcript": "Hello, it's good to see you again. How was your day?",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。本次 MeanVC2 流式转换使用 Gemini Live Schedar 基础声源，转换参数保持不变。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-saku-en.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-saku-en-schedar.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Schedar"
+  },
+  {
+    "characterId": "koharu",
+    "language": "ja",
+    "sameText": true,
+    "transcript": "こんにちは。今日も会えてうれしい。少し話そうか。",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。MeanVC2 样音来自本页面的实时转换链路。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-koharu-ja.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-koharu-ja.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Kore"
+  },
+  {
+    "characterId": "koharu",
+    "language": "en",
+    "sameText": true,
+    "transcript": "Hello, it's good to see you again. How was your day?",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。MeanVC2 样音来自本页面的实时转换链路。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-koharu-en.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-koharu-en.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Kore"
+  },
+  {
+    "characterId": "love",
+    "language": "ja",
+    "sameText": true,
+    "transcript": "こんにちは。今日も会えてうれしい。少し話そうか。",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。MeanVC2 样音来自本页面的实时转换链路。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-love-ja.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-love-ja.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Kore"
+  },
+  {
+    "characterId": "love",
+    "language": "en",
+    "sameText": false,
+    "transcript": "Hello, it's good to see you again. How was your day?",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。MeanVC2 样音来自本页面的实时转换链路。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-love-en.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-love-en.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Kore"
+  },
+  {
+    "characterId": "reiji",
+    "language": "ja",
+    "sameText": false,
+    "transcript": "こんにちは。今日も会えてうれしい。少し話そうか。",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。本次 MeanVC2 流式转换使用 Gemini Live Schedar 基础声源，转换参数保持不变。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-reiji-ja.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-reiji-ja-schedar.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Schedar"
+  },
+  {
+    "characterId": "reiji",
+    "language": "en",
+    "sameText": true,
+    "transcript": "Hello, it's good to see you again. How was your day?",
+    "provenanceNote": "官网样音使用该角色当前 Fish 音色配置生成，为语音试听，并非通话录音。本次 MeanVC2 流式转换使用 Gemini Live Schedar 基础声源，转换参数保持不变。两路使用相同输入台词。",
+    "audio": [
+      {
+        "audioRelativeUrl": "./comparisons/official-reiji-en.mp3",
+        "label": "官网当前音色"
+      },
+      {
+        "audioRelativeUrl": "./comparisons/meanvc2-reiji-en-schedar.wav",
+        "label": "MeanVC2 流式转换"
+      }
+    ],
+    "sourceVoice": "Schedar"
+  }
+]

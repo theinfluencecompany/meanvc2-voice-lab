@@ -1,0 +1,15 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "meanvc2-voice-lab",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-10-06",
+  "observability": { "enabled": false },
+  "vars": { "PUBLIC_ORIGIN": "https://YOUR-WORKER.YOUR-SUBDOMAIN.workers.dev" },
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/ws", "/relay/*", "/ping"]
+  },
+  "durable_objects": { "bindings": [{ "name": "VOICE_RELAY", "class_name": "VoiceRelay" }] },
+  "migrations": [{ "tag": "v1-voice-relay", "new_sqlite_classes": ["VoiceRelay"] }]
+}

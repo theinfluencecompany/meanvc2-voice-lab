@@ -1,0 +1,20 @@
+{
+  "description": "Official speaker extraction for this character, with unchanged accepted prefix RNG state and inference policy.",
+  "upstream_commit": "13acf84c1bf135ea5edad9c245b345289b06b33e",
+  "seed": 42,
+  "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+  "speaker_embedding_asset": "official-speaker.npy",
+  "speaker_model_sha256": "51f07e3b94d9e0262a6a675ef5a087be3dd09e8c62e9d886827f44f82fe7f94b",
+  "reference": {
+    "source": "outputs/meanvc2-share-20261023/characters/love/reference.16k.wav",
+    "sha256": "20a3fec4a6eaf8088948365f52a6c057bf9f997d3c508926854b0b9d137dbaa7"
+  },
+  "assets": {
+    "official-speaker.npy": {
+      "sha256": "678068566608326a7d31b49cd5cf376b28409d41ee7d182eaa143c4d642d2b09"
+    },
+    "cli-inference-rng.pt": {
+      "sha256": "7228b505061107019424f2baf98302ff3283b4726fbc22434f39e056bd3b4439"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "description": "Official speaker extraction for this character, with unchanged accepted prefix RNG state and inference policy.",
+  "upstream_commit": "13acf84c1bf135ea5edad9c245b345289b06b33e",
+  "seed": 42,
+  "model_fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+  "speaker_embedding_asset": "official-speaker.npy",
+  "speaker_model_sha256": "51f07e3b94d9e0262a6a675ef5a087be3dd09e8c62e9d886827f44f82fe7f94b",
+  "reference": {
+    "source": "outputs/meanvc2-share-20261023/characters/koharu/reference.16k.wav",
+    "sha256": "5bde511db092c58417066feb8c0dfabbfd5e93542e3d1edfabe923e30495a479"
+  },
+  "assets": {
+    "official-speaker.npy": {
+      "sha256": "1929511800760b4476a60d8aa6a7e9499dc60464c4ef4518343ee849e705789e"
+    },
+    "cli-inference-rng.pt": {
+      "sha256": "7228b505061107019424f2baf98302ff3283b4726fbc22434f39e056bd3b4439"
+    }
+  }
+}

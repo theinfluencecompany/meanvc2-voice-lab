@@ -1,0 +1,55 @@
+diff --git a/src/infer/infer_e2e.py b/src/infer/infer_e2e.py
+index 1ba2e1b..2d756a5 100644
+--- a/src/infer/infer_e2e.py
++++ b/src/infer/infer_e2e.py
+@@ -200,6 +200,8 @@ if __name__ == "__main__":
+     parser.add_argument("--output-mel", type=str, default=None)
+     parser.add_argument("--steps", type=int, default=3)
+     parser.add_argument("--device", type=str, default="cpu")
++    parser.add_argument("--seed", type=int, default=42)
++    parser.add_argument("--threads", type=int, default=1)
+ 
+     # Overrides (optional — defaults come from --model preset)
+     parser.add_argument("--asr-ckpt", type=str, default=None)
+@@ -211,6 +213,9 @@ if __name__ == "__main__":
+     parser.add_argument("--vocoder-ckpt-path", type=str,
+                         default=os.path.join(_ROOT, "ckpts/vocos/vocos.pt"))
+     args = parser.parse_args()
++    torch.set_num_threads(args.threads)
++    torch.manual_seed(args.seed)
++    np.random.seed(args.seed)
+ 
+     preset = MODEL_PRESETS[args.model]
+     asr_ckpt = args.asr_ckpt or preset["asr_ckpt"]
+diff --git a/src/model/__init__.py b/src/model/__init__.py
+index 6f69f1c..d7a1a6d 100644
+--- a/src/model/__init__.py
++++ b/src/model/__init__.py
+@@ -1,8 +1,22 @@
+-from src.model.cfm import CFM
++"""Load training entry points only when requested.
+ 
+-from src.model.backbones.dit import DiT
+-from src.model.cfm_mean_flow import MeanFlow
++Inference imports modules/utils from this package and should not import the
++training evaluator (FunASR, zhconv, etc.) as a side effect.
++"""
++from importlib import import_module
+ 
+-from src.model.trainer import Trainer
++_EXPORTS = {
++    "CFM": "src.model.cfm",
++    "DiT": "src.model.backbones.dit",
++    "MeanFlow": "src.model.cfm_mean_flow",
++    "Trainer": "src.model.trainer",
++}
++__all__ = list(_EXPORTS)
+ 
+-__all__ = ["CFM", "UNetT", "DiT", "MMDiT", "Trainer"]
++
++def __getattr__(name):
++    if name not in _EXPORTS:
++        raise AttributeError(name)
++    value = getattr(import_module(_EXPORTS[name]), name)
++    globals()[name] = value
++    return value
