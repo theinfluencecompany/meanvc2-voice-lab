@@ -31,7 +31,7 @@ Gemini Live → MeanVC2 流式变声的独立实验工具。提供角色原声�
 需要 Node.js 22.12+ 和 Python 3；不需要 API 密钥或模型。
 
 ```bash
-git clone https://github.com/asashiki/meanvc2-voice-lab.git
+git clone https://github.com/theinfluencecompany/meanvc2-voice-lab.git
 cd meanvc2-voice-lab
 npm --prefix web ci
 npm --prefix web run build
