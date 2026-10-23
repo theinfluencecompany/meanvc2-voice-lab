@@ -7,17 +7,29 @@ export class LocalVoicePlayback {
   private nextSequence = 0;
   private firstPacketAt = 0;
   private firstPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
+  private readonly onContextStateChange = () => {
+    if (this.context.state !== "running" && this.playing) {
+      // Suspended contexts stop their audio clock. Keeping scheduled nodes would
+      // play stale conversation audio when the browser eventually resumes.
+      this.clear();
+      this.onPlaybackError("浏览器暂停了音频播放，已清除旧音频，请重新开始通话。");
+    }
+  };
 
   constructor(
     private context: AudioContext,
     private onFirstPlayback: (milliseconds: number) => void,
     private onUnderrun: (gapMilliseconds: number) => void = () => {},
-  ) {}
+    private onPlaybackError: (message: string) => void = () => {},
+  ) {
+    this.context.addEventListener("statechange", this.onContextStateChange);
+  }
 
   get playing() { return this.sources.size > 0; }
 
   append(turn: string, encoded: string, rate: number, sequence: number) {
     if (this.cancelled.has(turn)) return;
+    if (this.context.state !== "running") throw new Error("浏览器音频已暂停，请重新开始通话。");
     if (turn !== this.currentTurn) {
       this.clear();
       this.currentTurn = turn;
@@ -39,6 +51,9 @@ export class LocalVoicePlayback {
     // Native speech can arrive faster than playback. This is a memory bound, not
     // extra startup buffering; cancellation still stops every scheduled source.
     if (when + samples.length / rate - this.context.currentTime > 12) throw new Error("播放积压超过 12 秒，请结束后重试。");
+    // Duration alone does not bound node overhead when a provider sends tiny
+    // packets. 4096 nodes accommodates ordinary 20/40 ms packets comfortably.
+    if (this.sources.size >= 4096) throw new Error("音频包积压过多，请结束后重试。");
     const buffer = this.context.createBuffer(1, samples.length, rate);
     buffer.copyToChannel(samples, 0);
     const source = this.context.createBufferSource();
@@ -53,12 +68,19 @@ export class LocalVoicePlayback {
     // This is not a physical speaker measurement; ignore floating-point noise.
     if (gapMilliseconds > 0.001) this.onUnderrun(gapMilliseconds);
     if (first) {
-      this.firstPlaybackTimer = setTimeout(() => {
+      const observePlayback = () => {
         this.firstPlaybackTimer = undefined;
-        if (this.currentTurn === turn && !this.cancelled.has(turn)) {
-          this.onFirstPlayback(performance.now() - this.firstPacketAt);
+        if (this.currentTurn !== turn || this.cancelled.has(turn)) return;
+        if (this.context.state !== "running") { this.onContextStateChange(); return; }
+        const remaining = when - this.context.currentTime;
+        // A wall-clock timer firing is not proof that the audio clock advanced.
+        if (remaining > 0.001) {
+          this.firstPlaybackTimer = setTimeout(observePlayback, Math.max(10, remaining * 1000));
+          return;
         }
-      }, (when - this.context.currentTime) * 1000);
+        this.onFirstPlayback(performance.now() - this.firstPacketAt);
+      };
+      this.firstPlaybackTimer = setTimeout(observePlayback, (when - this.context.currentTime) * 1000);
     }
   }
 
@@ -77,5 +99,9 @@ export class LocalVoicePlayback {
     this.currentTurn = null;
   }
 
-  dispose() { this.clear(); this.cancelled.clear(); }
+  dispose() {
+    this.context.removeEventListener("statechange", this.onContextStateChange);
+    this.clear();
+    this.cancelled.clear();
+  }
 }

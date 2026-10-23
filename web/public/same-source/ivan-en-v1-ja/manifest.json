@@ -1,0 +1,121 @@
+{
+  "schema": "meanvc2.same-source.v1",
+  "case_id": "ivan-en-v1-ja",
+  "character_id": "ivan",
+  "character_label": "Ivan Volkov",
+  "profile": "ivan-en-v1",
+  "language": "ja",
+  "source_voice": "Schedar",
+  "created_at": "2026-10-24T01:46:14.203161+08:00",
+  "scope": "Offline replay of a previously generated Gemini recording, not a live API call or latency benchmark. Listening quality is not scored.",
+  "source": {
+    "path": "web/public/source-voices/Schedar-ja.wav",
+    "sha256": "f42d393cdf7098bfae9fa6a6e9402dac3095be2460a6a5afa422e39e9368b696",
+    "sample_rate": 24000,
+    "channels": 1,
+    "samples": 93601,
+    "duration_seconds": 3.9000416666666666,
+    "preprocessing": "One shared pass: PCM16 /32767, channel mean if needed, soxr HQ to 16000 Hz if needed, round*32767 and clip to PCM16. Both paths then use identical input16k.wav bytes and official PCM16 /32767 normalization."
+  },
+  "input": {
+    "file": "input16k.wav",
+    "sha256": "72373bfc959e9268bc0e45cd445ef42f27436c58925c7bf9556de7176418e503",
+    "pcm_sha256": "3829e9c3efb37091913d1c27af4fda46b9b11c9f9df19978479d9e1477042408",
+    "sample_rate": 16000,
+    "channels": 1,
+    "samples": 62401,
+    "duration_seconds": 3.9000625
+  },
+  "reference": {
+    "path": "outputs/ivan-jp-pilot-20261020/audio/ivan-fish-reference-en.16k.wav",
+    "sha256": "81d2eb9ab2f3f54014355fca906e2302905829261eb53722a376e6510ae8be4a"
+  },
+  "speaker_cache": {
+    "path": "work/ivan-jp-pilot/voice-service/prefix-assets/ivan-official-speaker.npy",
+    "sha256": "f69e779c230fef2ba112d4c9a67167541e16f94f4a1b424d90b4f79b1390a534",
+    "extraction": "Verified official infer_e2e speaker cache; not legacy runtime embedding"
+  },
+  "rng": {
+    "initial_state_sha256": "69be31b53b5ae009f29d3f0032d8c327486a7ff0634217d28a4736f97e511981",
+    "asset_sha256": "7228b505061107019424f2baf98302ff3283b4726fbc22434f39e056bd3b4439",
+    "policy": "Identical frozen initial CPU state; official full sequence versus prefix absolute-position draws"
+  },
+  "model": {
+    "upstream_commit": "13acf84c1bf135ea5edad9c245b345289b06b33e",
+    "fingerprint": "464119fca051947941e55484a3247d7848493b57d54e7c00e0fa011a3205b8f0",
+    "preset": "120ms",
+    "future_context_ms": 40,
+    "ode_steps": 3,
+    "device": "cpu",
+    "torch_threads": 1,
+    "shared_objects": "Both paths use Engine.template.asr and vocoder; DiT implementations differ but load the same pinned weights",
+    "whole_vc_class": "dit_kvcache.DiT",
+    "stream_vc_class": "src.dit.DiT",
+    "whole_vc_code_sha256": "55b0b17ba3667c93fcb9fdf7b2b0b5e3f9bbfad00faffa3fc8a373089a6e9149",
+    "stream_vc_code_sha256": "cc003afd3559353f8f555a00d5c145451f4e7ce9e503c2b7239cc2ef5fe30348",
+    "official_functions_sha256": "f31d955486ecae0c8e959f47e5f0c64ca11c573e4ef285d081a479814abeedd0",
+    "adapter_revision": "ab30ddb0ee946eb9b09906974e9a46e1f99f9f7941644666eaf6d9b1448bb525"
+  },
+  "whole": {
+    "file": "whole.wav",
+    "sha256": "b87ceebc0ef474b4f0cc7582a6adfb7b44757e6c04ab0565360b914b6d728fd2",
+    "method": "Unmodified infer_e2e.extract_bn + infer_e2e.vc_inference; full-utterance feature interpolation and whole-mel Vocos decode",
+    "duration_seconds": 3.83,
+    "samples": 61280,
+    "feature_compute_seconds": 0.22601658399798907,
+    "conversion_compute_seconds": 0.33946375000232365,
+    "compute_seconds": 0.5654803340003127
+  },
+  "stream": {
+    "file": "stream.wav",
+    "sha256": "473cec480c49abbf5280215a7a38a2b51a8cd1143b2eebda79244fe9a6184e54",
+    "method": "Engine.new_runner(prefix_quality); only arrived PCM supplied in 160 ms packets, then finish; no sleeps or API transport",
+    "duration_seconds": 3.83,
+    "samples": 61280,
+    "packet_samples": 2560,
+    "packet_ms": 160.0,
+    "first_output_after_input_samples": 33280,
+    "first_output_after_input_ms": 2080.0,
+    "first_output_before_eof": true,
+    "compute_seconds": 0.6385170840076171,
+    "flush_compute_seconds": 0.19441999999980908,
+    "prefix_policy": {
+      "implementation": "causal-prefix-grid-1280-v1",
+      "extra_bn_wait": 32,
+      "extra_feature_context_ms": 1280,
+      "noise": "absolute-position continuous CPU RNG, frozen official CLI state",
+      "steps": 3,
+      "maximum_turn_seconds": 30,
+      "max_turn_samples": 480000,
+      "tail": "real samples only; no ASR padding; final partial VC block retained",
+      "quality_status": "one experimental sample accepted; live conversation needs listening"
+    },
+    "vocoder_policy": {
+      "implementation": "bounded-context-v1",
+      "history_frames": 32,
+      "future_frames": 32,
+      "mel_frame_ms": 10,
+      "emit_frames": 12,
+      "vocoder_future_context_ms": 320,
+      "first_emit_after_mel_frames": 48,
+      "startup_note": "32 future frames; 12-frame model packets round first emission to 48 received frames. This is not total call latency."
+    },
+    "trace_file": "stream-trace.json"
+  },
+  "measurement_notes": [
+    "160 ms is a replay packet size, not response delay. Input required before first output measures buffering only.",
+    "Compute excludes model loading, source preparation, API generation, network and audio playback. Whole runs first; no benchmark warmup or repetition.",
+    "Both are fixed prerecorded Schedar inputs; changing the page's live source voice does not regenerate these files.",
+    "This compares the actual official whole path with the actual prefix stream path under shared source, reference, weights and initial RNG. Their DiT implementations also differ; no single-cause attribution or subjective quality, production throughput or full-duplex claim is made.",
+    "Official full-file fbank/ASR omits incomplete end frames; prefix finish uses real frames only and does not add ASR padding."
+  ],
+  "environment": {
+    "python": "3.11.17",
+    "torch": "2.5.1",
+    "numpy": "2.0.2",
+    "soxr": "1.1.0",
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "generator_sha256": "f1077e0944f1a7d5545cf25bba1837c3149f8275a75b2136a15e264696154f6c"
+}

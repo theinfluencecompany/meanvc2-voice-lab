@@ -1,0 +1,48 @@
+{
+  "kind": "local-fake-provider-only",
+  "duration_target_seconds": 60,
+  "input_packets": 1450,
+  "output_packets": 1451,
+  "input_after_first_output": 1449,
+  "output_after_first_input": 1451,
+  "transcript_events": 58,
+  "output_bytes": 1857280,
+  "confirmed_closed": true,
+  "memory_samples": [
+    {
+      "elapsed_seconds": 10.0,
+      "current_bytes": 106200,
+      "peak_bytes": 375113
+    },
+    {
+      "elapsed_seconds": 20.0,
+      "current_bytes": 108818,
+      "peak_bytes": 375832
+    },
+    {
+      "elapsed_seconds": 30.0,
+      "current_bytes": 103120,
+      "peak_bytes": 376226
+    },
+    {
+      "elapsed_seconds": 40.0,
+      "current_bytes": 107784,
+      "peak_bytes": 376723
+    },
+    {
+      "elapsed_seconds": 50.0,
+      "current_bytes": 107744,
+      "peak_bytes": 376723
+    },
+    {
+      "elapsed_seconds": 60.0,
+      "current_bytes": 109511,
+      "peak_bytes": 376858
+    }
+  ],
+  "max_input_gap_ms": 78.02,
+  "max_output_gap_ms": 77.83,
+  "note": "No GPT request, no model quality or production latency claim.",
+  "elapsed_seconds": 60.023,
+  "current_memory_growth_bytes_after_20s": 693
+}
