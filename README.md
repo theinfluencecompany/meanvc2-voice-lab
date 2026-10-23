@@ -4,6 +4,8 @@ Gemini Live → MeanVC2 流式变声的独立实验工具。提供角色原声�
 
 **[打开在线体验页面](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/)**
 
+**[Fish 新版日语对照](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/?view=fish)** — Ivan／月見灯，S2 Pro配置基线、S2.1 Pro、Drama 3，普通与耳语指令共12段原生TTS录音。[生成方式与边界](docs/fish-models.md)
+
 **[同一声源：整段与流式对照](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/?view=compare)** — 久世、Ivan，日英四组，直接比较原声、目标参考、官方整段和当前流式。
 
 页面可直接播放固定样音；实时对话需要体验码，且托管者的电脑与语音服务保持在线。体验码通过私下分享获取，不写入公开仓库。
