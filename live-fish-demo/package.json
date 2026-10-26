@@ -1,0 +1,9 @@
+{
+  "name": "prelulu-live-fish-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": { "dev": "vite --host 127.0.0.1", "build": "vite build", "preview": "vite preview --host 127.0.0.1" },
+  "dependencies": { "react": "19.1.9", "react-dom": "19.1.9" },
+  "devDependencies": { "@vitejs/plugin-react": "6.0.2", "vite": "8.3.5" }
+}
