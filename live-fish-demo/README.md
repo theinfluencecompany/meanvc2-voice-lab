@@ -1,6 +1,10 @@
-# Prelulu · Fish Voice Lab
+# Prelulu · Voice Lab
 
 公司独立演示页：[打开 Voice Lab](https://demo-voice-lab.zjudn2013.workers.dev/voice-lab/)。
+
+新增 [Eleven 现场生成与耳语](https://demo-voice-lab.zjudn2013.workers.dev/voice-lab/?tab=eleven)：输入最多600字符的任意台词，在同一个官方参考音色下，独立选择 Eleven v4 / v4 Turbo 和正常 / 耳语。可一次生成正常声与耳语两段，支持重播、下载；不使用预生成录音代替新输入。需要当前 Demo 体验码。
+
+Roger / Sarah 是 Eleven 官方试听音色，不是 Prelulu 角色的克隆。它们用于评估多语言与耳语表现，不能用来证明原角色音色相似度。此入口只合成输入原文，不生成角色回复，不是实时通话。耳语不包含双耳或环境音效果。
 
 固定角色的同一个 Fish voice ID，选择 English、日本語、한국어、繁體中文（台湾用语）或简体中文，比较三种发声模式：
 
@@ -26,6 +30,7 @@
 
 - `FISH_API_KEY`：启用现场台词合成。
 - `DEMO_ACCESS_TOKEN`：分享给体验者的访问码，完整邀请链接可带 `#invite=...`。它不是 Fish 密钥。
+- `ELEVENLABS_API_KEY`：启用独立的 Eleven 任意台词合成，不影响 Fish 的配置状态。仅注入专用 Demo Worker，不能进入前端构建或 Git。
 
 生产 Worker 中已有 Fish secret 不会自动被此 Worker 继承。部署权限也不等于能读取生产 secret。由持有测试密钥的人通过 Cloudflare 控制台或本机已配置入口注入，**不把密钥写入 GitHub、浏览器或普通聊天**：
 
@@ -41,7 +46,7 @@ prelulu-demo secret put FISH_API_KEY
 cd live-fish-demo
 npm ci
 npm run build
-node --test worker/worker.test.mjs
+node --test worker/*.test.mjs
 # 仅在已获授权的公司 Demo 环境：
 prelulu-demo deploy --config ./worker/wrangler.jsonc
 ```
@@ -56,4 +61,12 @@ prelulu-demo deploy --config ./worker/wrangler.jsonc
 
 详细后端契约与小范围访问限制见 [worker/README-backend.md](worker/README-backend.md)。
 
-当前页面只评估Fish原生朗读，不使用Gemini Live或MeanVC2；角色回复入口已移除。公司Worker为原地改名，原ID及已有绑定保持，未更改生产应用。
+Fish标签评估Fish原生朗读，Eleven标签评估Eleven原生朗读，均不使用Gemini Live或MeanVC2；角色回复入口已移除。公司Worker为原地改名，原ID及已有绑定保持，未更改生产应用。
+
+## Eleven 接口与验证
+
+`POST /api/eleven/synthesize` 接受固定的 `voiceId`（`roger` / `sarah`）、`locale`、`model`、`delivery`（`normal` / `whisper`）及纯文本 `text`。同源校验与现有体验码、并发、请求频率限制共同作用；模型与音色 ID 由服务端白名单决定。耳语只由服务端添加 `[whispers]`，供应商错误正文不会透传。每次点击明确发起合成，无后台轮询生成或自动付费重试。
+
+输出标记 `provider: elevenlabs`、`source: live`（本次生成，不表示 Live 通话）、`requestedModel`、`servedModel: null`，以及完整合成耗时。原始请求 ID 只在供应商返回有效格式时记录；不声称已独立验证供应商执行的模型。
+
+2026-10-26 已通过账户模型列表核对两个模型，并分别实际请求日语音频，均返回 HTTP 200 / MP3。主观声音质量、日语自然度和耳语舒适度由人工试听判断；本机全文件合成耗时不作为通话延迟。
