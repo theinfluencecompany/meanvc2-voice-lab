@@ -32,11 +32,12 @@ function ResultCard({ result, compact = false, autoplay = false }) {
   const mode = MODES.find(item => item.id === result.mode);
   const character = CHARACTERS.find(item => item.id === result.characterId);
   const locale = LOCALES.find(item => item.id === result.locale);
+  const cached = result.source === 'sample_cache';
   return <article className={`result-card ${compact ? 'compact' : ''}`}>
-    <div className="result-meta"><span className={`mode-dot ${result.mode}`} /><strong>{mode?.label || result.mode}</strong><span>{character?.shortName} · {locale?.label}</span>{!compact && <span className="result-tag">本次生成</span>}</div>
-    <p className="spoken-text" lang={result.locale}>{result.reply || result.text}</p>
+    <div className="result-meta"><span className={`mode-dot ${result.mode}`} /><strong>{mode?.label || result.mode}</strong><span>{character?.shortName} · {locale?.label}</span>{!compact && <span className="result-tag">{cached ? '预生成标准句' : '本次生成'}</span>}</div>
+    <p className="spoken-text" lang={result.locale}>{result.text}</p>
     <audio controls autoPlay={autoplay} preload="metadata" src={result.audioDataUrl} onPlay={playSolo} aria-label={`${character?.name} ${locale?.label} ${mode?.label} 生成音频`} />
-    <details className="technical"><summary>生成信息</summary><dl><div><dt>请求模型</dt><dd>{result.requestedModel || mode?.model}</dd></div><div><dt>完整生成耗时</dt><dd>{Number.isFinite(result.metrics?.totalMs) ? `${(result.metrics.totalMs / 1000).toFixed(2)} 秒` : '未返回'}</dd></div></dl><p>耗时为服务端记录的完整生成等待，不含浏览器网络时间，也不代表流式首音延迟。服务端未提供实际执行模型的独立证明。</p></details>
+    <details className="technical"><summary>{cached ? '样音信息' : '生成信息'}</summary><dl><div><dt>请求模型</dt><dd>{result.requestedModel || mode?.model}</dd></div>{!cached && <div><dt>完整生成耗时</dt><dd>{Number.isFinite(result.metrics?.totalMs) ? `${(result.metrics.totalMs / 1000).toFixed(2)} 秒` : '未返回'}</dd></div>}</dl><p>{cached ? '这段标准句已使用该角色的 Fish 音色提前生成，本次直接加载试听。' : '耗时为服务端记录的完整生成等待，不含浏览器网络时间，也不代表流式首音延迟。服务端未提供实际执行模型的独立证明。'}</p></details>
   </article>;
 }
 
@@ -49,10 +50,8 @@ export default function App() {
   const [characterId, setCharacterId] = useState('ivan');
   const [locale, setLocale] = useState('ja');
   const [mode, setMode] = useState('original');
-  const [tab, setTab] = useState('read');
   const [text, setText] = useState(LOCALES.find(item => item.id === 'ja').sample);
   const [history, setHistory] = useState([]);
-  const [chatHistory, setChatHistory] = useState([]);
   const [currentResults, setCurrentResults] = useState([]);
   const [pending, setPending] = useState(null);
   const [error, setError] = useState('');
@@ -68,13 +67,16 @@ export default function App() {
   const character = characters.find(item => item.id === characterId) || CHARACTERS[0];
   const language = locales.find(item => item.id === locale) || LOCALES[1];
   const ttsAvailable = config?.capabilities?.tts === true;
-  const chatAvailable = config?.capabilities?.chat === true;
-  const canGenerate = ttsAvailable && (tab === 'read' || chatAvailable) && text.trim().length > 0 && text.length <= MAX_TEXT;
+  const sampleKeys = new Set(config?.sampleKeys || []);
+  const isStandardText = text.trim() === language.sample.trim();
+  const hasSample = selectedMode => isStandardText && sampleKeys.has(`${characterId}:${locale}:${selectedMode}`);
+  const validText = text.trim().length > 0 && text.length <= MAX_TEXT;
+  const canGenerate = validText && (ttsAvailable || hasSample(mode));
+  const canCompare = validText && (ttsAvailable || modes.every(item => hasSample(item.id)));
+  const samplesAvailable = sampleKeys.size > 0;
   const pricing = { ...FISH_PRICING, ...config?.pricing };
   const promotionActive = Date.now() < Date.parse(pricing.dramaPromotionUntil);
   const filteredHistory = history.filter(item => item.characterId === characterId && item.locale === locale);
-  const latestReply = filteredHistory.find(item => item.reply)?.reply;
-  const compareText = tab === 'read' ? text.trim() : latestReply;
   const supportsMic = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => {
@@ -115,11 +117,10 @@ export default function App() {
     stopRecognition();
     setError('');
     setCurrentResults([]);
-    setChatHistory([]);
     if (next.characterId) setCharacterId(next.characterId);
     if (next.locale) {
       setLocale(next.locale);
-      setText(tab === 'read' ? locales.find(item => item.id === next.locale).sample : '');
+      setText(locales.find(item => item.id === next.locale).sample);
     }
     if (next.mode) setMode(next.mode);
   }
@@ -142,9 +143,8 @@ export default function App() {
   }
 
   async function generate(compare = false) {
-    if (pending || !ttsAvailable) return;
-    if (!compare && !canGenerate) return;
-    const content = compare ? compareText : text.trim();
+    if (pending || (compare ? !canCompare : !canGenerate)) return;
+    const content = text.trim();
     if (!content || content.length > MAX_TEXT) return;
     pauseAudio();
     stopRecognition();
@@ -158,16 +158,13 @@ export default function App() {
       for (let index = 0; index < requestedModes.length; index += 1) {
         if (requestId !== requestRef.current) return;
         const selectedMode = requestedModes[index];
-        setPending({ compare, label: selectedMode.label, index: index + 1, total: requestedModes.length });
-        const isChat = !compare && tab === 'chat';
-        const result = await synthesize(isChat ? '/api/chat' : '/api/synthesize', {
+        setPending({ compare, cached: hasSample(selectedMode.id), label: selectedMode.label, index: index + 1, total: requestedModes.length });
+        const result = await synthesize('/api/synthesize', {
           characterId, locale, mode: selectedMode.id, text: content,
-          ...(isChat ? { history: chatHistory.slice(-8) } : {}),
         }, controller.signal);
         if (requestId !== requestRef.current) return;
         setCurrentResults(items => [...items, result]);
         setHistory(items => [result, ...items].slice(0, 12));
-        if (isChat) setChatHistory(items => [...items, { role: 'user', content }, { role: 'assistant', content: result.reply || result.text }].slice(-8));
       }
       resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (reason) {
@@ -175,16 +172,6 @@ export default function App() {
     } finally {
       if (requestId === requestRef.current) { setPending(null); controllerRef.current = null; }
     }
-  }
-
-  function changeTab(nextTab) {
-    if (nextTab === tab) return;
-    cancel();
-    stopRecognition();
-    setTab(nextTab);
-    setText(nextTab === 'read' ? language.sample : '');
-    setError('');
-    setCurrentResults([]);
   }
 
   function useMicrophone() {
@@ -205,12 +192,12 @@ export default function App() {
   }
 
   return <div className="page-shell">
-    <header className="topbar"><a className="brand" href="/voice-lab/" aria-label="Prelulu Voice Lab 首页"><span className="brand-symbol">p<span>·</span></span><span>prelulu<span className="brand-divider" />voice lab</span></a><nav><a href={COMPARISON_URL} target="_blank" rel="noreferrer">固定试听对照 <span aria-hidden="true">↗</span></a><button className="access-trigger" onClick={() => setShowAccess(value => !value)}>{token ? '体验码已填写' : '连接体验码'}</button></nav></header>
+    <header className="topbar"><a className="brand" href="/voice-lab/" aria-label="Prelulu Voice Lab 首页"><span className="brand-symbol">p<span>·</span></span><span>prelulu<span className="brand-divider" />voice lab</span></a><nav><a href={COMPARISON_URL} target="_blank" rel="noreferrer">固定试听对照 <span aria-hidden="true">↗</span></a>{ttsAvailable && <button className="access-trigger" onClick={() => setShowAccess(value => !value)}>{token ? '体验码已填写' : '连接体验码'}</button>}</nav></header>
 
-    {showAccess && <section className="access-panel" aria-label="体验服务连接"><div><strong>{token ? '已保存当前体验码' : '输入体验码，连接生成服务'}</strong><p>只在当前页面内使用，刷新后需重新连接；也可从邀请链接打开。</p></div><form onSubmit={event => { event.preventDefault(); if (tokenDraft.trim()) { cancel(); setToken(tokenDraft.trim()); setTokenDraft(''); setShowAccess(false); setError(''); } }}><label className="sr-only" htmlFor="access-token">体验码</label><input id="access-token" type="password" autoComplete="off" value={tokenDraft} onChange={event => setTokenDraft(event.target.value)} placeholder="粘贴体验码" /><button type="submit" className="primary small" disabled={!tokenDraft.trim()}>连接</button></form></section>}
+    {showAccess && ttsAvailable && <section className="access-panel" aria-label="体验服务连接"><div><strong>{token ? '已保存当前体验码' : '输入体验码，连接生成服务'}</strong><p>只在当前页面内使用，刷新后需重新连接；也可从邀请链接打开。</p></div><form onSubmit={event => { event.preventDefault(); if (tokenDraft.trim()) { cancel(); setToken(tokenDraft.trim()); setTokenDraft(''); setShowAccess(false); setError(''); } }}><label className="sr-only" htmlFor="access-token">体验码</label><input id="access-token" type="password" autoComplete="off" value={tokenDraft} onChange={event => setTokenDraft(event.target.value)} placeholder="粘贴体验码" /><button type="submit" className="primary small" disabled={!tokenDraft.trim()}>连接</button></form></section>}
 
     <main>
-      <section className="hero"><div><div className="eyebrow"><span /> LIVE VOICE STUDIO</div><h1>同一个声音，<br className="mobile-break" />跨语言开口<span>。</span></h1><p>选一个角色，说一句你想听的话。<br className="mobile-break" />比较不同语言的自然度，也试试耳边轻声。</p></div><div className="hero-wave"><Wave /><span>ONE VOICE · MANY LANGUAGES</span></div></section>
+      <section className="hero"><div><div className="eyebrow"><span /> FISH VOICE STUDIO</div><h1>同一个声音，<br className="mobile-break" />跨语言开口<span>。</span></h1><p>选一个角色，试听同一句话的不同表现。<br className="mobile-break" />比较不同语言的自然度，也试试耳边轻声。</p></div><div className="hero-wave"><Wave /><span>ONE VOICE · MANY LANGUAGES</span></div></section>
 
       <div className="studio-grid">
         <aside className="character-panel">
@@ -222,21 +209,20 @@ export default function App() {
         </aside>
 
         <section className="studio-panel" aria-label="语音生成工作台">
-          <div className="section-title"><span className="step">02</span><h2>语言与表现</h2><span className={`service-status ${ttsAvailable ? 'online' : ''}`} role="status"><i />{ttsAvailable ? '生成服务已配置' : configError ? '服务暂不可用' : config ? '生成服务未连接' : '连接服务中'}</span></div>
+          <div className="section-title"><span className="step">02</span><h2>语言与表现</h2><span className={`service-status ${ttsAvailable || samplesAvailable ? 'online' : ''}`} role="status"><i />{ttsAvailable ? '生成服务已配置' : samplesAvailable ? '标准句可试听' : configError ? '服务暂不可用' : config ? '样音准备中' : '连接服务中'}</span></div>
           <div className="language-tabs" role="group" aria-label="选择发声语言">{locales.map(item => <button key={item.id} className={locale === item.id ? 'selected' : ''} aria-pressed={locale === item.id} onClick={() => changeContext({ locale: item.id })}><strong>{item.label}</strong><span>{item.nativeLabel}</span></button>)}</div>
           <div className="mode-grid" role="group" aria-label="选择发声模式">{modes.map(item => <button key={item.id} className={`mode-card ${item.id} ${mode === item.id ? 'selected' : ''}`} aria-pressed={mode === item.id} onClick={() => changeContext({ mode: item.id })}><div className="mode-top"><span className="mode-icon">{item.id === 'asmr' ? '☾' : item.id === 'optimized' ? '✧' : '◉'}</span><span className="radio-dot" /></div><strong>{item.label}</strong><span className="model-name">{item.model === 's2-pro' ? 'S2 Pro' : item.model === 's2.1-pro' ? 'S2.1 Pro' : 'Drama 3'}</span><span className="price-badge">{item.badge}</span></button>)}</div>
           <p className="mode-note">{mode === 'asmr' ? '轻声耳语实验：使用 Drama 3 耳语指令；不是双耳录音，也不包含 ASMR 音效。' : mode === 'optimized' ? '语言优化是本次试验的候选模式，是否更自然，请用同一句话试听判断。' : '原版配置基线：使用 S2 Pro 直接生成角色语音。'}</p>
 
           <div className="composer">
-            <div className="composer-head"><div className="input-tabs" role="group" aria-label="输入用途"><button className={tab === 'read' ? 'selected' : ''} onClick={() => changeTab('read')} aria-pressed={tab === 'read'}>读原文</button><button className={tab === 'chat' ? 'selected' : ''} onClick={() => changeTab('chat')} aria-pressed={tab === 'chat'}>角色回复</button></div><button className="text-button sample-button" onClick={() => { setText(tab === 'read' ? language.sample : language.greeting); setError(''); }}><Icon name="spark" />填入示例</button></div>
-            <label className="sr-only" htmlFor="speech-text">{tab === 'read' ? '要朗读的原文' : '想对角色说的话'}</label>
-            <textarea id="speech-text" value={text} maxLength={MAX_TEXT} onChange={event => setText(event.target.value)} placeholder={tab === 'read' ? `输入${language.label}台词，角色会照着读……` : '对角色说点什么，让 TA 用选定语言简短回应……'} spellCheck={false} />
-            <div className="composer-foot"><span>{tab === 'read' ? '按输入文字朗读，不自动翻译' : '先生成简短回复，再用所选声音朗读'}</span><span>{text.length} / {MAX_TEXT}</span></div>
+            <div className="composer-head"><strong>读原文</strong><button className="text-button sample-button" onClick={() => { setText(language.sample); setError(''); }}><Icon name="spark" />填入标准句</button></div>
+            <label className="sr-only" htmlFor="speech-text">要朗读的原文</label>
+            <textarea id="speech-text" value={text} maxLength={MAX_TEXT} onChange={event => setText(event.target.value)} placeholder={`输入${language.label}台词，角色会照着读……`} spellCheck={false} />
+            <div className="composer-foot"><span>按输入文字朗读，不自动翻译</span><span>{text.length} / {MAX_TEXT}</span></div>
           </div>
-          {tab === 'chat' && !chatAvailable && config && <p className="notice">角色回复服务暂未连接。可以先用「读原文」体验三个声音模型。</p>}
-          {!ttsAvailable && (config || configError) && <p className="notice">{configError || '实时生成服务尚未配置完成，当前不能发起生成。'} <a href={COMPARISON_URL} target="_blank" rel="noreferrer">先听已生成的对照音频 ↗</a></p>}
-          <div className="action-row"><button className="primary generate-button" onClick={() => generate()} disabled={!canGenerate || !!pending}>{pending ? <><span className="spinner" />{pending.compare ? `${pending.index}/${pending.total} · ` : ''}正在生成{pending.label}</> : <><Icon name="spark" />{tab === 'read' ? '生成这句声音' : '听角色回复'}<Icon name="arrow" /></>}</button>{pending ? <button className="secondary" onClick={cancel}><Icon name="stop" />取消</button> : <button className="secondary compare-button" onClick={() => generate(true)} disabled={!ttsAvailable || !compareText || compareText.length > MAX_TEXT} title={tab === 'chat' ? '将最近一次角色回复，分别用三个模型朗读' : '同一段文字，分别用三个模型生成'}><Icon name="compare" />同句对比</button>}</div>
-          <div className="below-actions"><p>{tab === 'chat' ? '同句对比会重读最近一条角色回复。' : '同句对比会生成三段音频，方便并排听。'}</p>{supportsMic && <button className={`text-button mic-button ${listening ? 'listening' : ''}`} onClick={useMicrophone} disabled={!!pending}><Icon name={listening ? 'stop' : 'mic'} />{listening ? '结束听写' : '语音输入'}</button>}</div>
+          {!ttsAvailable && (config || configError) && <p className="notice">{configError || (samplesAvailable ? '当前可试听标准句；新台词合成待接通。' : '标准句样音正在准备；新台词合成待接通。')} {!isStandardText && <button className="text-button" onClick={() => { setText(language.sample); setError(''); }}>恢复标准句</button>}</p>}
+          <div className="action-row"><button className="primary generate-button" onClick={() => generate()} disabled={!canGenerate || !!pending}>{pending ? <><span className="spinner" />{pending.compare ? `${pending.index}/${pending.total} · ` : ''}{pending.cached ? '正在加载' : '正在生成'}{pending.label}</> : <><Icon name="spark" />朗读这句<Icon name="arrow" /></>}</button>{pending ? <button className="secondary" onClick={cancel}><Icon name="stop" />取消</button> : <button className="secondary compare-button" onClick={() => generate(true)} disabled={!canCompare} title="同一段文字，分别试听三个模型"><Icon name="compare" />同句对比</button>}</div>
+          <div className="below-actions"><p>同句对比会显示三段音频，方便并排听。</p>{supportsMic && ttsAvailable && <button className={`text-button mic-button ${listening ? 'listening' : ''}`} onClick={useMicrophone} disabled={!!pending}><Icon name={listening ? 'stop' : 'mic'} />{listening ? '结束听写' : '语音输入'}</button>}</div>
           {micNote && <p className="mic-note" role="status">{micNote}</p>}
           {error && <div className="error-message" role="alert">{error}</div>}
         </section>
@@ -244,12 +230,12 @@ export default function App() {
 
       <section className="results-section" ref={resultsRef} aria-live="polite" aria-busy={!!pending}>
         <div className="results-heading"><div><span className="eyebrow muted">LISTEN & COMPARE</span><h2>{currentResults.length > 1 || pending?.compare ? '同一句话，三种表现' : '听听这一次的声音'}</h2></div><span className="results-hint">{character.shortName} · {language.label}</span></div>
-        {currentResults.length ? <div className={`results-grid ${currentResults.length > 1 || pending?.compare ? 'multiple' : ''}`}>{currentResults.map(result => <ResultCard key={result.id} result={result} autoplay={false} />)}{pending?.compare && <div className="result-waiting"><span className="spinner" /><p>正在生成{pending.label}…</p></div>}</div> : <div className={`empty-result ${pending ? 'working' : ''}`}><Wave small /><div><h3>{pending ? `正在生成${pending.label}…` : '你的下一句，会是什么声音？'}</h3><p>{pending ? '完整音频生成后会显示在这里。你可以随时取消。' : '输入一句话，或填入示例，开始第一次试听。'}</p></div></div>}
+        {currentResults.length ? <div className={`results-grid ${currentResults.length > 1 || pending?.compare ? 'multiple' : ''}`}>{currentResults.map(result => <ResultCard key={result.id} result={result} autoplay={currentResults.length === 1 && !pending?.compare} />)}{pending?.compare && <div className="result-waiting"><span className="spinner" /><p>{pending.cached ? '正在加载' : '正在生成'}{pending.label}…</p></div>}</div> : <div className={`empty-result ${pending ? 'working' : ''}`}><Wave small /><div><h3>{pending ? `${pending.cached ? '正在加载' : '正在生成'}${pending.label}…` : '你的下一句，会是什么声音？'}</h3><p>{pending ? '音频准备好后会显示在这里。你可以随时取消。' : '点击「朗读这句」或「同句对比」，开始试听。'}</p></div></div>}
       </section>
 
-      {filteredHistory.length > 0 && <section className="history-section"><div className="history-heading"><h2>最近试听 <span>{filteredHistory.length}</span></h2><button className="text-button" onClick={() => { setHistory([]); setCurrentResults([]); setChatHistory([]); }}>清空记录</button></div><p>仅展示当前角色与语言，最多保留本页最近 12 次生成；刷新后清空。</p><div className="history-grid">{filteredHistory.map(result => <ResultCard key={result.id} result={result} compact />)}</div></section>}
+      {filteredHistory.length > 0 && <section className="history-section"><div className="history-heading"><h2>最近试听 <span>{filteredHistory.length}</span></h2><button className="text-button" onClick={() => { setHistory([]); setCurrentResults([]); }}>清空记录</button></div><p>仅展示当前角色与语言，最多保留本页最近 12 次试听；刷新后清空。</p><div className="history-grid">{filteredHistory.map(result => <ResultCard key={result.id} result={result} compact />)}</div></section>}
 
-      <details className="pricing-details"><summary><span>价格与体验说明</span><span aria-hidden="true">＋</span></summary><div><p>S2 Pro / S2.1 Pro 常价均为 ${pricing.s2List}；Drama 3 常价 ${pricing.dramaList}，约 {(pricing.dramaList / pricing.s2List).toFixed(1)} 倍。计费单位：{pricing.unit}。这只比较语音合成价格，不代表整场通话成本。</p>{promotionActive && <p>官方当前列出的 Drama 3 促销价为 ${pricing.dramaPromotion}，截至 {new Date(pricing.dramaPromotionUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}（北京时间）。实际费用以账号账单为准。</p>}<p>这里是即时生成与试听实验，生成完成后播放；不是实时电话或全双工通话。所有模式直接使用 Fish Audio，未经过 MeanVC2 变声。</p><a href={pricing.url} target="_blank" rel="noreferrer">查看 Fish 官方价格 ↗</a></div></details>
+      <details className="pricing-details"><summary><span>价格与体验说明</span><span aria-hidden="true">＋</span></summary><div><p>S2 Pro / S2.1 Pro 常价均为 ${pricing.s2List}；Drama 3 常价 ${pricing.dramaList}，约 {(pricing.dramaList / pricing.s2List).toFixed(1)} 倍。计费单位：{pricing.unit}。这只比较语音合成价格，不代表整场通话成本。</p>{promotionActive && <p>官方当前列出的 Drama 3 促销价为 ${pricing.dramaPromotion}，截至 {new Date(pricing.dramaPromotionUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}（北京时间）。实际费用以账号账单为准。</p>}<p>这里是 Fish Audio 朗读与试听实验。预生成标准句会明确标注；新台词需语音合成服务可用。不是实时电话或全双工通话，所有模式均未经过 MeanVC2 变声。</p><a href={pricing.url} target="_blank" rel="noreferrer">查看 Fish 官方价格 ↗</a></div></details>
     </main>
     <footer><span><strong>prelulu</strong> voice lab</span><p>让声音留住角色，让语言靠近你。</p><a href={COMPARISON_URL} target="_blank" rel="noreferrer">打开固定试听对照 ↗</a></footer>
   </div>;

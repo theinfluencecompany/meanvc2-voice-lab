@@ -1,6 +1,6 @@
 # Prelulu · Fish Voice Lab
 
-公司独立演示页：[打开 Voice Lab](https://demo-qingshuai-lab.zjudn2013.workers.dev/voice-lab/)。
+公司独立演示页：[打开 Voice Lab](https://demo-voice-lab.zjudn2013.workers.dev/voice-lab/)。
 
 固定角色的同一个 Fish voice ID，选择 English、日本語、한국어、繁體中文（台湾用语）或简体中文，比较三种发声模式：
 
@@ -12,29 +12,25 @@
 
 三个角色为 Ivan、月見灯、朝霧朔。图片与声音参考来自现有公开角色资料，固定voice ID；切换语言不新建声音。页面提供：
 
-- **读原文**：现场输入台词，直接生成语音；不自动翻译。语言按钮会填入对应的标准台词，方便控制变量。
-- **角色回复**：相同的文字模型生成简短回复，再由当前选定的 Fish 模型朗读。角色描述是本演示的简短描述，不冒称生产中的全部记忆和人格。
-- **同句对比**：按三种模式分别合成同一句台词。聊天模式会重读最近一条已生成回复，避免不同回答干扰比较。
+- **读原文**：语言按钮填入对应标准句，可直接朗读；45个角色／语言／模型组合均已由已授权的Prelulu试听接口生成。结果明确标为“预生成标准句”，无需体验码。动态Fish服务配置后可合成任意新台词，不自动翻译。
+- **同句对比**：按三种模式分别试听同一句标准台词。不同模型和语言始终保留同一个角色voice ID。
 - 原声参考、重播、取消、仅在当前页保存的最近试听。支持语音听写的浏览器还可把麦克风转成可编辑文字，但这不是全双工通话。
 
 旧[固定试听页](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/?view=fish)继续保留。
 
 ## 状态与服务配置
 
-本目录代码可部署到已授权的 `demo-qingshuai-lab`。页面和服务是否能生成是两件事：`GET /api/config` 会按当前服务密钥配置返回 `tts/chat` 能力，未配置时页面禁用相应按钮，绝不拿录音冒充本次生成。
+本目录已部署到公司 `demo-voice-lab`。`GET /api/config` 返回动态能力和45个 `sampleKeys`。未配置Fish key时，只有文本完全匹配的标准句可免费读取已有音频；任何新句都会明确禁用／返回503，不用标准句替代用户新输入。`source: sample_cache`不冒称本次生成。
 
-需要在**这个 Demo Worker**注入：
+标准句已经可以试听。要合成任意新台词，需要在**这个 Demo Worker**注入：
 
 - `FISH_API_KEY`：启用现场台词合成。
 - `DEMO_ACCESS_TOKEN`：分享给体验者的访问码，完整邀请链接可带 `#invite=...`。它不是 Fish 密钥。
-- `GEMINI_API_KEY`：可选，启用“角色回复”；仅有 Fish 时“读原文”和“同句对比”仍可用。
-- `GEMINI_MODEL`：可选，使用账号实际可调用的文字模型；默认 `gemini-2.5-flash-lite`。
 
 生产 Worker 中已有 Fish secret 不会自动被此 Worker 继承。部署权限也不等于能读取生产 secret。由持有测试密钥的人通过 Cloudflare 控制台或本机已配置入口注入，**不把密钥写入 GitHub、浏览器或普通聊天**：
 
 ```bash
 prelulu-demo secret put FISH_API_KEY
-prelulu-demo secret put GEMINI_API_KEY
 ```
 
 按交互提示输入值。若没有本机封装命令，请使用自己的授权 Wrangler 配置执行同名 `secret put`。配置改变后刷新页面；`capabilities=true` 只说明存在配置，实际调用成功仍需一条现场音频验证。
@@ -59,3 +55,5 @@ prelulu-demo deploy --config ./worker/wrangler.jsonc
 当前接口完整生成MP3再返回；记录的是服务端完整生成耗时，不是流式首音或通话延迟。API请求中明确选择模型，但不返回供应商独立证明的served model，结果保留`servedModel:null`。
 
 详细后端契约与小范围访问限制见 [worker/README-backend.md](worker/README-backend.md)。
+
+当前页面只评估Fish原生朗读，不使用Gemini Live或MeanVC2；角色回复入口已移除。公司Worker为原地改名，原ID及已有绑定保持，未更改生产应用。

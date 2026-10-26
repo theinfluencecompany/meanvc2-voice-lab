@@ -1,6 +1,8 @@
 # Fish 实机试听后端
 
-这是独立公司 Demo Worker `demo-qingshuai-lab` 的后端，部署目标为 <https://demo-qingshuai-lab.zjudn2013.workers.dev/>。不需要本地 CPU，不经过 MeanVC2，不写 Prelulu 的角色或通话配置。
+这是独立公司 Demo Worker `demo-voice-lab` 的后端，部署目标为 <https://demo-voice-lab.zjudn2013.workers.dev/>。不需要本地 CPU，不经过 MeanVC2，不写 Prelulu 的角色或通话配置。
+
+当前页面只做Fish原文朗读。45个角色／语言／模式标准句由已授权的Prelulu试听接口生成，作为缓存音频随静态资源部署；文本与白名单标准句完全匹配时，即使没有Fish直连密钥也可公开试听，响应明确为`source: sample_cache`，不提供本次生成耗时。任何不同的新句都不会偷偷替换为标准句。动态合成配置后响应为`source: live`并继续要求体验码。
 
 ## 配置
 

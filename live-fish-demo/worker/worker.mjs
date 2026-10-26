@@ -1,4 +1,5 @@
 import { CHARACTERS, LOCALES, MODES, FISH_PRICING } from '../shared/catalog.mjs';
+import { SAMPLES } from '../shared/samples.mjs';
 
 const MAX_BODY_BYTES = 24 * 1024;
 const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
@@ -180,6 +181,7 @@ export function createWorker({ fetcher = globalThis.fetch, now = Date.now, rateL
         if (url.pathname === '/api/config' && request.method === 'GET') return json({
           characters: CHARACTERS, locales: LOCALES, modes: MODES, pricing: FISH_PRICING,
           capabilities: { tts: hasKey(env.FISH_API_KEY), chat: hasKey(env.FISH_API_KEY) && hasKey(env.GEMINI_API_KEY), transcription: false },
+          sampleKeys: SAMPLES.map((sample) => sample.key),
         });
         if (!['/api/synthesize', '/api/chat'].includes(url.pathname)) {
           if (url.pathname.startsWith('/api/')) return json({ error: { code: 'not_found', message: '接口不存在。' } }, 404);
@@ -193,8 +195,23 @@ export function createWorker({ fetcher = globalThis.fetch, now = Date.now, rateL
         requireOrigin(request);
         const ip = request.headers.get('CF-Connecting-IP') || 'local';
         consume(attempts, ip, rateLimit * 5);
-        requireToken(request, env);
         const isChat = url.pathname === '/api/chat';
+        if (!isChat && !hasKey(env.FISH_API_KEY)) {
+          const input = validate(await readBody(request), false);
+          const sample = SAMPLES.find((item) => item.key === `${input.character.id}:${input.locale.id}:${input.mode.id}` && item.text === input.text);
+          if (sample && env.ASSETS) {
+            const asset = await env.ASSETS.fetch(new Request(new URL(sample.assetPath, request.url), { method: 'GET' }));
+            if (!asset.ok) throw new ApiError(503, 'sample_unavailable', '这段标准句暂时无法读取，请稍后重试。');
+            const bytes = await boundedBytes(asset.body, MAX_AUDIO_BYTES, new ApiError(502, 'audio_too_large', '音频超过体验服务限制。'));
+            if (!bytes.length) throw new ApiError(503, 'sample_unavailable', '标准句音频为空。');
+            return json({ audioDataUrl: `data:audio/mpeg;base64,${base64(bytes)}`, text: sample.text,
+              characterId: input.character.id, locale: input.locale.id, mode: input.mode.id,
+              requestedModel: input.mode.model, servedModel: null, voiceId: input.character.voiceId,
+              source: 'sample_cache', generatedAt: sample.generatedAt, metrics: {} });
+          }
+          throw new ApiError(503, 'fish_not_configured', '当前可试听标准句；新台词合成待接通。');
+        }
+        requireToken(request, env);
         if (!hasKey(env.FISH_API_KEY)) throw new ApiError(503, 'fish_not_configured', '体验服务尚未配置 Fish API，暂时无法实时生成。');
         if (isChat && !hasKey(env.GEMINI_API_KEY)) throw new ApiError(503, 'chat_not_configured', '体验服务尚未配置对话 API，可以先使用台词试听。');
         const input = validate(await readBody(request), isChat);
@@ -211,6 +228,7 @@ export function createWorker({ fetcher = globalThis.fetch, now = Date.now, rateL
             audioDataUrl, text: answer.text, ...(isChat ? { reply: answer.text, inputText: input.text, chatModel: answer.model } : {}),
             characterId: input.character.id, locale: input.locale.id, mode: input.mode.id,
             requestedModel: input.mode.model, servedModel: null, voiceId: input.character.voiceId,
+            source: 'live',
             metrics, ...metrics,
           });
         } finally { active--; }

@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorker } from './worker.mjs';
 import { CHARACTERS, LOCALES, MODES } from '../shared/catalog.mjs';
+import { SAMPLES } from '../shared/samples.mjs';
 
-const ORIGIN = 'https://demo-qingshuai-lab.zjudn2013.workers.dev';
+const ORIGIN = 'https://demo-voice-lab.zjudn2013.workers.dev';
 const ENV = { FISH_API_KEY: 'test-fish-secret', GEMINI_API_KEY: 'test-google-secret', DEMO_ACCESS_TOKEN: 'test-access-code' };
 const INPUT = { characterId: 'ivan', locale: 'ja', mode: 'original', text: '今日はどんな一日だった？' };
 function request(body = INPUT, path = '/api/synthesize', headers = {}, signal) {
@@ -64,6 +65,27 @@ test('auth, origin and missing configuration never call a provider', async () =>
   assert.equal((await worker.fetch(request(), { FISH_API_KEY: ENV.FISH_API_KEY })).status, 503);
   assert.equal((await worker.fetch(request(INPUT, '/api/chat'), { FISH_API_KEY: ENV.FISH_API_KEY, DEMO_ACCESS_TOKEN: ENV.DEMO_ACCESS_TOKEN })).status, 503);
   assert.equal(calls, 0);
+});
+
+test('exact standard lines remain playable without a provider key and are labeled cached', async () => {
+  let providerCalls = 0;
+  const fetched = [];
+  const worker = createWorker({ fetcher: async () => { providerCalls++; return mp3(); } });
+  const sample = SAMPLES.find(item => item.key === 'ivan:ja:original');
+  const env = { ASSETS: { fetch: async request => { fetched.push(new URL(request.url).pathname); return mp3(); } } };
+  const response = await worker.fetch(request({ ...INPUT, text: sample.text }, '/api/synthesize', { Authorization: '' }), env);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.source, 'sample_cache');
+  assert.equal(data.text, sample.text);
+  assert.equal(data.requestedModel, 's2-pro');
+  assert.equal(data.metrics.totalMs, undefined);
+  assert.deepEqual(fetched, [sample.assetPath]);
+  assert.equal(providerCalls, 0);
+  const custom = await worker.fetch(request({ ...INPUT, text: sample.text + ' Custom text.' }, '/api/synthesize', { Authorization: '' }), env);
+  assert.equal(custom.status, 503);
+  assert.equal((await custom.json()).error.code, 'fish_not_configured');
+  assert.equal(fetched.length, 1);
 });
 
 test('untrusted model, voice, language, tags and oversized text are rejected', async () => {

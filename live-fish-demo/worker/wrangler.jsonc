@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "demo-qingshuai-lab",
+  "name": "demo-voice-lab",
   "main": "worker.mjs",
   "compatibility_date": "2026-10-26",
   "workers_dev": true,

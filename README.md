@@ -2,7 +2,7 @@
 
 Gemini Live → MeanVC2 流式变声的独立实验工具。提供角色原声、官网当前配置生成的试听、历史整段转换，以及实时变声的对照。
 
-**[公司 Fish Voice Lab](https://demo-qingshuai-lab.zjudn2013.workers.dev/voice-lab/)**：三角色、五种语言、三种Fish模式，现场朗读／短回复／同句对比。[部署与服务配置](live-fish-demo/README.md)。2026-10-26页面与接口已部署，生成仍等待专用Demo的Fish API绑定；以页面服务状态为准，不代表已通过真实生成验收。
+**[公司 Fish Voice Lab](https://demo-voice-lab.zjudn2013.workers.dev/voice-lab/)**：三角色、五种语言、三种Fish模式，45组标准句已可直接试听／同句对比，明确标为预生成样音。[部署与服务配置](live-fish-demo/README.md)。任意新台词的动态生成仍待专用Fish API绑定；当前页面不使用Gemini。
 
 **[打开在线体验页面](https://meanvc2-ivan-report.asashiki-qingshuai.workers.dev/)**
 
