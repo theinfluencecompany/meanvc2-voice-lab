@@ -6,6 +6,7 @@
 venv/
 node_modules/
 web/dist/
+live-fish-demo/dist/
 .wrangler/
 __pycache__/
 *.pyc
