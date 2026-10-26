@@ -354,7 +354,10 @@ export function LocalVoiceLab() {
   return <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-4 py-8 text-foreground" data-testid="local-voice-lab">
     <header className="flex items-center justify-between gap-4">
       <a href="/" className="font-display text-xl">Prelulu</a>
-      <a href={`?view=compare${window.location.hash}`} className="text-sm text-muted-foreground">整段 / 流式同源对照</a>
+      <nav className="flex flex-wrap justify-end gap-3 text-sm text-muted-foreground" aria-label="试听实验">
+        <a href={`?view=fish${window.location.hash}`}>Fish 新版对照</a>
+        <a href={`?view=compare${window.location.hash}`}>整段 / 流式同源对照</a>
+      </nav>
     </header>
     <section className="rounded-2xl border border-border bg-card p-6 shadow-e1">
       <label htmlFor="voice-character" className="text-sm text-muted-foreground">角色</label>
