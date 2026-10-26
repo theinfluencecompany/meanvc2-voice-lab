@@ -1,7 +1,7 @@
 export const CHARACTERS = [
   { id: 'ivan', name: 'Ivan Volkov', shortName: 'Ivan', subtitle: '冷静克制 · 英语参考声线', referenceLanguage: 'en', voiceId: '6fb84253b20442fb92298c892e0ff239', image: '/characters/ivan.webp', referenceAudio: '/characters/ivan-reference.mp3', accent: '#7f9db3' },
   { id: 'love', name: '月見 灯', shortName: '灯', subtitle: '温柔亲近 · 日语参考声线', referenceLanguage: 'ja', voiceId: '0089dce5fefb4c6ba9b9f2f0debe1ddc', image: '/characters/love.webp', referenceAudio: '/characters/love-reference.mp3', accent: '#e5a795' },
-  { id: 'saku', name: '朝霧 朔', shortName: '朔', subtitle: '轻松随和 · 日语参考声线', referenceLanguage: 'ja', voiceId: 'b34382d843ff4352b5c3f44c0874d085', image: '/characters/saku.webp', referenceAudio: '/characters/saku-reference.mp3', accent: '#aca1cc' },
+  { id: 'dante', name: 'Dante Marchetti', shortName: 'Dante', subtitle: '热门角色 · 英语参考声线', referenceLanguage: 'en', voiceId: 'a5971a1fd805441aaf3b0bbe8c9f1ab6', image: '/characters/dante.webp', referenceAudio: '/characters/dante-reference.mp3', accent: '#aca1cc' },
 ];
 
 export const LOCALES = [

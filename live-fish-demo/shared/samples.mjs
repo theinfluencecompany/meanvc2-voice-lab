@@ -132,72 +132,6 @@ export const SAMPLES = [
     "generatedAt": "2026-10-26"
   },
   {
-    "key": "saku:ja:original",
-    "characterId": "saku",
-    "locale": "ja",
-    "mode": "original",
-    "text": "今日は、どんな一日だった？無理に話さなくても大丈夫。ゆっくりでいいから、聞かせて。",
-    "requestedModel": "s2-pro",
-    "assetPath": "/samples/saku-ja-original.mp3",
-    "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:07.590Z"
-  },
-  {
-    "key": "saku:ja:optimized",
-    "characterId": "saku",
-    "locale": "ja",
-    "mode": "optimized",
-    "text": "今日は、どんな一日だった？無理に話さなくても大丈夫。ゆっくりでいいから、聞かせて。",
-    "requestedModel": "s2.1-pro",
-    "assetPath": "/samples/saku-ja-optimized.mp3",
-    "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:07.592Z"
-  },
-  {
-    "key": "saku:ja:asmr",
-    "characterId": "saku",
-    "locale": "ja",
-    "mode": "asmr",
-    "text": "今日は、どんな一日だった？無理に話さなくても大丈夫。ゆっくりでいいから、聞かせて。",
-    "requestedModel": "drama-3",
-    "assetPath": "/samples/saku-ja-asmr.mp3",
-    "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:07.592Z"
-  },
-  {
-    "key": "saku:en:original",
-    "characterId": "saku",
-    "locale": "en",
-    "mode": "original",
-    "text": "How was your day? It's okay if you don't feel like talking. Take your time. I'm here to listen.",
-    "requestedModel": "s2-pro",
-    "assetPath": "/samples/saku-en-original.mp3",
-    "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:07.593Z"
-  },
-  {
-    "key": "saku:en:optimized",
-    "characterId": "saku",
-    "locale": "en",
-    "mode": "optimized",
-    "text": "How was your day? It's okay if you don't feel like talking. Take your time. I'm here to listen.",
-    "requestedModel": "s2.1-pro",
-    "assetPath": "/samples/saku-en-optimized.mp3",
-    "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:07.593Z"
-  },
-  {
-    "key": "saku:en:asmr",
-    "characterId": "saku",
-    "locale": "en",
-    "mode": "asmr",
-    "text": "How was your day? It's okay if you don't feel like talking. Take your time. I'm here to listen.",
-    "requestedModel": "drama-3",
-    "assetPath": "/samples/saku-en-asmr.mp3",
-    "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:07.594Z"
-  },
-  {
     "key": "ivan:ko:original",
     "characterId": "ivan",
     "locale": "ko",
@@ -396,102 +330,168 @@ export const SAMPLES = [
     "generatedAt": "2026-10-26T05:19:07.601Z"
   },
   {
-    "key": "saku:ko:original",
-    "characterId": "saku",
+    "key": "dante:en:original",
+    "characterId": "dante",
+    "locale": "en",
+    "mode": "original",
+    "text": "How was your day? It's okay if you don't feel like talking. Take your time. I'm here to listen.",
+    "requestedModel": "s2-pro",
+    "assetPath": "/samples/dante-en-original.mp3",
+    "source": "sample_cache",
+    "generatedAt": "2026-10-26T05:40:37.494Z"
+  },
+  {
+    "key": "dante:en:optimized",
+    "characterId": "dante",
+    "locale": "en",
+    "mode": "optimized",
+    "text": "How was your day? It's okay if you don't feel like talking. Take your time. I'm here to listen.",
+    "requestedModel": "s2.1-pro",
+    "assetPath": "/samples/dante-en-optimized.mp3",
+    "source": "sample_cache",
+    "generatedAt": "2026-10-26T05:40:37.495Z"
+  },
+  {
+    "key": "dante:en:asmr",
+    "characterId": "dante",
+    "locale": "en",
+    "mode": "asmr",
+    "text": "How was your day? It's okay if you don't feel like talking. Take your time. I'm here to listen.",
+    "requestedModel": "drama-3",
+    "assetPath": "/samples/dante-en-asmr.mp3",
+    "source": "sample_cache",
+    "generatedAt": "2026-10-26T05:40:37.496Z"
+  },
+  {
+    "key": "dante:ja:original",
+    "characterId": "dante",
+    "locale": "ja",
+    "mode": "original",
+    "text": "今日は、どんな一日だった？無理に話さなくても大丈夫。ゆっくりでいいから、聞かせて。",
+    "requestedModel": "s2-pro",
+    "assetPath": "/samples/dante-ja-original.mp3",
+    "source": "sample_cache",
+    "generatedAt": "2026-10-26T05:40:37.496Z"
+  },
+  {
+    "key": "dante:ja:optimized",
+    "characterId": "dante",
+    "locale": "ja",
+    "mode": "optimized",
+    "text": "今日は、どんな一日だった？無理に話さなくても大丈夫。ゆっくりでいいから、聞かせて。",
+    "requestedModel": "s2.1-pro",
+    "assetPath": "/samples/dante-ja-optimized.mp3",
+    "source": "sample_cache",
+    "generatedAt": "2026-10-26T05:40:37.496Z"
+  },
+  {
+    "key": "dante:ja:asmr",
+    "characterId": "dante",
+    "locale": "ja",
+    "mode": "asmr",
+    "text": "今日は、どんな一日だった？無理に話さなくても大丈夫。ゆっくりでいいから、聞かせて。",
+    "requestedModel": "drama-3",
+    "assetPath": "/samples/dante-ja-asmr.mp3",
+    "source": "sample_cache",
+    "generatedAt": "2026-10-26T05:40:37.497Z"
+  },
+  {
+    "key": "dante:ko:original",
+    "characterId": "dante",
     "locale": "ko",
     "mode": "original",
     "text": "오늘 하루는 어땠어? 억지로 말하지 않아도 괜찮아. 천천히 해도 돼. 네 이야기를 들어줄게.",
     "requestedModel": "s2-pro",
-    "assetPath": "/samples/saku-ko-original.mp3",
+    "assetPath": "/samples/dante-ko-original.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.962Z"
+    "generatedAt": "2026-10-26T05:40:50.394Z"
   },
   {
-    "key": "saku:ko:optimized",
-    "characterId": "saku",
+    "key": "dante:ko:optimized",
+    "characterId": "dante",
     "locale": "ko",
     "mode": "optimized",
     "text": "오늘 하루는 어땠어? 억지로 말하지 않아도 괜찮아. 천천히 해도 돼. 네 이야기를 들어줄게.",
     "requestedModel": "s2.1-pro",
-    "assetPath": "/samples/saku-ko-optimized.mp3",
+    "assetPath": "/samples/dante-ko-optimized.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.963Z"
+    "generatedAt": "2026-10-26T05:40:50.395Z"
   },
   {
-    "key": "saku:ko:asmr",
-    "characterId": "saku",
+    "key": "dante:ko:asmr",
+    "characterId": "dante",
     "locale": "ko",
     "mode": "asmr",
     "text": "오늘 하루는 어땠어? 억지로 말하지 않아도 괜찮아. 천천히 해도 돼. 네 이야기를 들어줄게.",
     "requestedModel": "drama-3",
-    "assetPath": "/samples/saku-ko-asmr.mp3",
+    "assetPath": "/samples/dante-ko-asmr.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.964Z"
+    "generatedAt": "2026-10-26T05:40:50.395Z"
   },
   {
-    "key": "saku:zh-TW:original",
-    "characterId": "saku",
+    "key": "dante:zh-TW:original",
+    "characterId": "dante",
     "locale": "zh-TW",
     "mode": "original",
     "text": "今天過得怎麼樣？不想說也沒關係，慢慢來，我會在這裡聽你說。",
     "requestedModel": "s2-pro",
-    "assetPath": "/samples/saku-zh-TW-original.mp3",
+    "assetPath": "/samples/dante-zh-TW-original.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.964Z"
+    "generatedAt": "2026-10-26T05:40:50.395Z"
   },
   {
-    "key": "saku:zh-TW:optimized",
-    "characterId": "saku",
+    "key": "dante:zh-TW:optimized",
+    "characterId": "dante",
     "locale": "zh-TW",
     "mode": "optimized",
     "text": "今天過得怎麼樣？不想說也沒關係，慢慢來，我會在這裡聽你說。",
     "requestedModel": "s2.1-pro",
-    "assetPath": "/samples/saku-zh-TW-optimized.mp3",
+    "assetPath": "/samples/dante-zh-TW-optimized.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.965Z"
+    "generatedAt": "2026-10-26T05:40:50.396Z"
   },
   {
-    "key": "saku:zh-TW:asmr",
-    "characterId": "saku",
+    "key": "dante:zh-TW:asmr",
+    "characterId": "dante",
     "locale": "zh-TW",
     "mode": "asmr",
     "text": "今天過得怎麼樣？不想說也沒關係，慢慢來，我會在這裡聽你說。",
     "requestedModel": "drama-3",
-    "assetPath": "/samples/saku-zh-TW-asmr.mp3",
+    "assetPath": "/samples/dante-zh-TW-asmr.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.965Z"
+    "generatedAt": "2026-10-26T05:40:50.396Z"
   },
   {
-    "key": "saku:zh-CN:original",
-    "characterId": "saku",
+    "key": "dante:zh-CN:original",
+    "characterId": "dante",
     "locale": "zh-CN",
     "mode": "original",
     "text": "今天过得怎么样？不想说也没关系，慢慢来，我会在这里听你说。",
     "requestedModel": "s2-pro",
-    "assetPath": "/samples/saku-zh-CN-original.mp3",
+    "assetPath": "/samples/dante-zh-CN-original.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.966Z"
+    "generatedAt": "2026-10-26T05:40:50.397Z"
   },
   {
-    "key": "saku:zh-CN:optimized",
-    "characterId": "saku",
+    "key": "dante:zh-CN:optimized",
+    "characterId": "dante",
     "locale": "zh-CN",
     "mode": "optimized",
     "text": "今天过得怎么样？不想说也没关系，慢慢来，我会在这里听你说。",
     "requestedModel": "s2.1-pro",
-    "assetPath": "/samples/saku-zh-CN-optimized.mp3",
+    "assetPath": "/samples/dante-zh-CN-optimized.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.967Z"
+    "generatedAt": "2026-10-26T05:40:50.397Z"
   },
   {
-    "key": "saku:zh-CN:asmr",
-    "characterId": "saku",
+    "key": "dante:zh-CN:asmr",
+    "characterId": "dante",
     "locale": "zh-CN",
     "mode": "asmr",
     "text": "今天过得怎么样？不想说也没关系，慢慢来，我会在这里听你说。",
     "requestedModel": "drama-3",
-    "assetPath": "/samples/saku-zh-CN-asmr.mp3",
+    "assetPath": "/samples/dante-zh-CN-asmr.mp3",
     "source": "sample_cache",
-    "generatedAt": "2026-10-26T05:19:39.967Z"
+    "generatedAt": "2026-10-26T05:40:50.397Z"
   }
 ];

@@ -10,7 +10,7 @@ const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
 const PERSONAS = {
   ivan: 'You are Ivan, a calm, reserved and attentive fictional companion. Speak directly and naturally.',
   love: 'You are Akari, a warm, gentle and attentive fictional companion. Speak naturally without theatrical narration.',
-  saku: 'You are Saku, an easygoing, friendly fictional companion. Keep the conversation natural and relaxed.',
+  dante: 'You are Dante, a composed, confident fictional companion. Keep replies concise and conversational.',
 };
 const encoder = new TextEncoder();
 
