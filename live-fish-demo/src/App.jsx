@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { CHARACTERS, LOCALES, MODES, FISH_PRICING, COMPARISON_URL } from '../shared/catalog.mjs';
+import ElevenStudio from './ElevenStudio.jsx';
 
 const MAX_TEXT = 600;
 const localeCodes = { en: 'en-US', ja: 'ja-JP', ko: 'ko-KR', 'zh-TW': 'zh-TW', 'zh-CN': 'zh-CN' };
@@ -47,6 +48,7 @@ export default function App() {
   const [token, setToken] = useState(takeInvite);
   const [tokenDraft, setTokenDraft] = useState('');
   const [showAccess, setShowAccess] = useState(false);
+  const [studio, setStudio] = useState(() => new URLSearchParams(window.location.search).get('tab') === 'eleven' ? 'eleven' : 'fish');
   const [characterId, setCharacterId] = useState('ivan');
   const [locale, setLocale] = useState('ja');
   const [mode, setMode] = useState('original');
@@ -67,6 +69,7 @@ export default function App() {
   const character = characters.find(item => item.id === characterId) || CHARACTERS[0];
   const language = locales.find(item => item.id === locale) || LOCALES[1];
   const ttsAvailable = config?.capabilities?.tts === true;
+  const anyGenerationAvailable = ttsAvailable || config?.eleven?.available === true;
   const sampleKeys = new Set(config?.sampleKeys || []);
   const isStandardText = text.trim() === language.sample.trim();
   const hasSample = selectedMode => isStandardText && sampleKeys.has(`${characterId}:${locale}:${selectedMode}`);
@@ -110,6 +113,21 @@ export default function App() {
     recognition?.abort();
     setListening(false);
     setMicNote('');
+  }
+
+  function changeStudio(next) {
+    cancel();
+    stopRecognition();
+    setStudio(next);
+    const url = new URL(window.location.href);
+    if (next === 'eleven') url.searchParams.set('tab', 'eleven');
+    else url.searchParams.delete('tab');
+    window.history.replaceState(null, '', url.pathname + url.search);
+  }
+
+  function openAccess() {
+    setShowAccess(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function changeContext(next) {
@@ -192,11 +210,14 @@ export default function App() {
   }
 
   return <div className="page-shell">
-    <header className="topbar"><a className="brand" href="/voice-lab/" aria-label="Prelulu Voice Lab 首页"><span className="brand-symbol">p<span>·</span></span><span>prelulu<span className="brand-divider" />voice lab</span></a><nav><a href={COMPARISON_URL} target="_blank" rel="noreferrer">固定试听对照 <span aria-hidden="true">↗</span></a>{ttsAvailable && <button className="access-trigger" onClick={() => setShowAccess(value => !value)}>{token ? '体验码已填写' : '连接体验码'}</button>}</nav></header>
+    <header className="topbar"><a className="brand" href="/voice-lab/" aria-label="Prelulu Voice Lab 首页"><span className="brand-symbol">p<span>·</span></span><span>prelulu<span className="brand-divider" />voice lab</span></a><nav><a href={COMPARISON_URL} target="_blank" rel="noreferrer">固定试听对照 <span aria-hidden="true">↗</span></a>{anyGenerationAvailable && <button className="access-trigger" onClick={() => setShowAccess(value => !value)}>{token ? '体验码已填写' : '连接体验码'}</button>}</nav></header>
 
-    {showAccess && ttsAvailable && <section className="access-panel" aria-label="体验服务连接"><div><strong>{token ? '已保存当前体验码' : '输入体验码，连接生成服务'}</strong><p>只在当前页面内使用，刷新后需重新连接；也可从邀请链接打开。</p></div><form onSubmit={event => { event.preventDefault(); if (tokenDraft.trim()) { cancel(); setToken(tokenDraft.trim()); setTokenDraft(''); setShowAccess(false); setError(''); } }}><label className="sr-only" htmlFor="access-token">体验码</label><input id="access-token" type="password" autoComplete="off" value={tokenDraft} onChange={event => setTokenDraft(event.target.value)} placeholder="粘贴体验码" /><button type="submit" className="primary small" disabled={!tokenDraft.trim()}>连接</button></form></section>}
+    {showAccess && anyGenerationAvailable && <section className="access-panel" aria-label="体验服务连接"><div><strong>{token ? '已保存当前体验码' : '输入体验码，连接生成服务'}</strong><p>只在当前页面内使用，刷新后需重新连接；也可从邀请链接打开。</p></div><form onSubmit={event => { event.preventDefault(); if (tokenDraft.trim()) { cancel(); setToken(tokenDraft.trim()); setTokenDraft(''); setShowAccess(false); setError(''); } }}><label className="sr-only" htmlFor="access-token">体验码</label><input id="access-token" type="password" autoComplete="off" value={tokenDraft} onChange={event => setTokenDraft(event.target.value)} placeholder="粘贴体验码" /><button type="submit" className="primary small" disabled={!tokenDraft.trim()}>连接</button></form></section>}
 
     <main>
+      <div className="lab-tabs" role="group" aria-label="选择试听工具"><button aria-pressed={studio === 'fish'} className={studio === 'fish' ? 'selected' : ''} onClick={() => changeStudio('fish')}>Prelulu 角色 · Fish</button><button aria-pressed={studio === 'eleven'} className={studio === 'eleven' ? 'selected' : ''} onClick={() => changeStudio('eleven')}>Eleven · 现场生成与耳语</button></div>
+      {studio === 'eleven' && <ElevenStudio config={config} token={token} openAccess={openAccess} />}
+      <div hidden={studio !== 'fish'}>
       <section className="hero"><div><div className="eyebrow"><span /> FISH VOICE STUDIO</div><h1>同一个声音，<br className="mobile-break" />跨语言开口<span>。</span></h1><p>选一个角色，试听同一句话的不同表现。<br className="mobile-break" />比较不同语言的自然度，也试试耳边轻声。</p></div><div className="hero-wave"><Wave /><span>ONE VOICE · MANY LANGUAGES</span></div></section>
 
       <div className="studio-grid">
@@ -236,6 +257,7 @@ export default function App() {
       {filteredHistory.length > 0 && <section className="history-section"><div className="history-heading"><h2>最近试听 <span>{filteredHistory.length}</span></h2><button className="text-button" onClick={() => { setHistory([]); setCurrentResults([]); }}>清空记录</button></div><p>仅展示当前角色与语言，最多保留本页最近 12 次试听；刷新后清空。</p><div className="history-grid">{filteredHistory.map(result => <ResultCard key={result.id} result={result} compact />)}</div></section>}
 
       <details className="pricing-details"><summary><span>价格与体验说明</span><span aria-hidden="true">＋</span></summary><div><p>S2 Pro / S2.1 Pro 常价均为 ${pricing.s2List}；Drama 3 常价 ${pricing.dramaList}，约 {(pricing.dramaList / pricing.s2List).toFixed(1)} 倍。计费单位：{pricing.unit}。这只比较语音合成价格，不代表整场通话成本。</p>{promotionActive && <p>官方当前列出的 Drama 3 促销价为 ${pricing.dramaPromotion}，截至 {new Date(pricing.dramaPromotionUntil).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}（北京时间）。实际费用以账号账单为准。</p>}<p>这里是 Fish Audio 朗读与试听实验。预生成标准句会明确标注；新台词需语音合成服务可用。不是实时电话或全双工通话，所有模式均未经过 MeanVC2 变声。</p><a href={pricing.url} target="_blank" rel="noreferrer">查看 Fish 官方价格 ↗</a></div></details>
+      </div>
     </main>
     <footer><span><strong>prelulu</strong> voice lab</span><p>让声音留住角色，让语言靠近你。</p><a href={COMPARISON_URL} target="_blank" rel="noreferrer">打开固定试听对照 ↗</a></footer>
   </div>;

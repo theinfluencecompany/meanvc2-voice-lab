@@ -1,5 +1,6 @@
 import { CHARACTERS, LOCALES, MODES, FISH_PRICING } from '../shared/catalog.mjs';
 import { SAMPLES } from '../shared/samples.mjs';
+import { ELEVEN_VOICES, ELEVEN_MODELS, DELIVERIES } from '../shared/eleven.mjs';
 
 const MAX_BODY_BYTES = 24 * 1024;
 const MAX_AUDIO_BYTES = 3 * 1024 * 1024;
@@ -109,6 +110,19 @@ function validate(body, isChat) {
   return { character, locale, mode, text, history };
 }
 
+function validateEleven(body) {
+  const allowed = new Set(['voiceId', 'locale', 'model', 'delivery', 'text']);
+  if (Object.keys(body).some((key) => !allowed.has(key))) throw new ApiError(400, 'unknown_field', '请求包含不支持的字段。');
+  const voice = ELEVEN_VOICES.find((item) => item.id === body.voiceId);
+  const locale = LOCALES.find((item) => item.id === body.locale);
+  const model = ELEVEN_MODELS.find((item) => item.id === body.model);
+  const delivery = DELIVERIES.find((item) => item.id === body.delivery);
+  if (!voice || !locale || !model || !delivery) throw new ApiError(400, 'invalid_selection', '请选择支持的声音、语言、模型和语气。');
+  const text = cleanText(body.text);
+  if (text.length > 600) throw new ApiError(400, 'text_too_long', '每段文字最多 600 字符。');
+  return { voice, locale, model, delivery, text };
+}
+
 function base64(bytes) {
   let binary = '';
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
@@ -137,6 +151,35 @@ async function speech(fetcher, env, input, text, request) {
   const bytes = await boundedBytes(response.body, MAX_AUDIO_BYTES, new ApiError(502, 'audio_too_large', '返回音频超过体验服务限制。'));
   if (!bytes.length) throw new ApiError(502, 'empty_audio', 'Fish 返回了空音频。');
   return `data:audio/mpeg;base64,${base64(bytes)}`;
+}
+
+async function elevenSpeech(fetcher, env, input, request) {
+  request.signal.throwIfAborted();
+  const response = await fetcher(`https://api.elevenlabs.io/v1/text-to-speech/${input.voice.providerVoiceId}?output_format=mp3_44100_128`, {
+    method: 'POST', signal: providerSignal(request, 60_000),
+    headers: { 'xi-api-key': env.ELEVENLABS_API_KEY.trim(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text: input.delivery.id === 'whisper' ? `[whispers] ${input.text}` : input.text,
+      model_id: input.model.id,
+      language_code: input.locale.id.startsWith('zh-') ? 'zh' : input.locale.id,
+    }),
+  });
+  if (!response.ok) {
+    await response.body?.cancel();
+    throw new ApiError(502, 'eleven_unavailable', 'Eleven 暂时未能生成音频，请稍后重试。');
+  }
+  const type = response.headers.get('Content-Type')?.split(';')[0].trim();
+  if (type && !['audio/mpeg', 'audio/mp3', 'application/octet-stream'].includes(type)) {
+    await response.body?.cancel();
+    throw new ApiError(502, 'invalid_audio', 'Eleven 没有返回可用音频。');
+  }
+  const bytes = await boundedBytes(response.body, MAX_AUDIO_BYTES, new ApiError(502, 'audio_too_large', '返回音频超过体验服务限制。'));
+  if (!bytes.length) throw new ApiError(502, 'empty_audio', 'Eleven 返回了空音频。');
+  const requestId = response.headers.get('request-id') || response.headers.get('x-request-id');
+  return {
+    audioDataUrl: `data:audio/mpeg;base64,${base64(bytes)}`,
+    ...(/^[A-Za-z0-9_-]{1,128}$/.test(requestId || '') ? { providerRequestId: requestId } : {}),
+  };
 }
 
 async function reply(fetcher, env, input, request) {
@@ -181,9 +224,10 @@ export function createWorker({ fetcher = globalThis.fetch, now = Date.now, rateL
         if (url.pathname === '/api/config' && request.method === 'GET') return json({
           characters: CHARACTERS, locales: LOCALES, modes: MODES, pricing: FISH_PRICING,
           capabilities: { tts: hasKey(env.FISH_API_KEY), chat: hasKey(env.FISH_API_KEY) && hasKey(env.GEMINI_API_KEY), transcription: false },
+          eleven: { available: hasKey(env.ELEVENLABS_API_KEY), voices: ELEVEN_VOICES, models: ELEVEN_MODELS, deliveries: DELIVERIES },
           sampleKeys: SAMPLES.map((sample) => sample.key),
         });
-        if (!['/api/synthesize', '/api/chat'].includes(url.pathname)) {
+        if (!['/api/synthesize', '/api/chat', '/api/eleven/synthesize'].includes(url.pathname)) {
           if (url.pathname.startsWith('/api/')) return json({ error: { code: 'not_found', message: '接口不存在。' } }, 404);
           if (url.pathname === '/voice-lab' || url.pathname === '/voice-lab/') {
             url.pathname = '/index.html';
@@ -195,6 +239,24 @@ export function createWorker({ fetcher = globalThis.fetch, now = Date.now, rateL
         requireOrigin(request);
         const ip = request.headers.get('CF-Connecting-IP') || 'local';
         consume(attempts, ip, rateLimit * 5);
+        if (url.pathname === '/api/eleven/synthesize') {
+          requireToken(request, env);
+          if (!hasKey(env.ELEVENLABS_API_KEY)) throw new ApiError(503, 'eleven_not_configured', '体验服务尚未配置 Eleven API。');
+          const input = validateEleven(await readBody(request));
+          consume(paid, ip, rateLimit);
+          if (active >= maxConcurrent) throw new ApiError(429, 'service_busy', '有人正在生成，请稍后重试。');
+          active++;
+          const started = now();
+          try {
+            const audio = await elevenSpeech(fetcher, env, input, request);
+            return json({
+              ...audio, text: input.text, locale: input.locale.id, delivery: input.delivery.id,
+              voiceId: input.voice.id, providerVoiceId: input.voice.providerVoiceId,
+              provider: 'elevenlabs', source: 'live', requestedModel: input.model.id, servedModel: null,
+              metrics: { totalMs: Math.max(0, now() - started) },
+            });
+          } finally { active--; }
+        }
         const isChat = url.pathname === '/api/chat';
         if (!isChat && !hasKey(env.FISH_API_KEY)) {
           const input = validate(await readBody(request), false);
