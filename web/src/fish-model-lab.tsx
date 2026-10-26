@@ -8,7 +8,7 @@ const SampleSchema = z.object({
   name: z.string().min(1),
   model: z.enum(["s2-pro", "s2.1-pro", "drama-3"]),
   condition: z.enum(["normal", "whisper"]),
-  language: z.literal("ja"),
+  language: z.enum(["ja", "en"]),
   spokenText: z.string().min(1),
   text: z.string().min(1),
   audioUrl: AudioUrl,
@@ -22,14 +22,18 @@ type FishSample = z.infer<typeof SampleSchema>;
 const modelNames = { "s2-pro": "S2 Pro · 配置基线", "s2.1-pro": "S2.1 Pro", "drama-3": "Drama 3" } as const;
 const conditions = ["normal", "whisper"] as const;
 const models = ["s2-pro", "s2.1-pro", "drama-3"] as const;
+const languages = ["ja", "en"] as const;
+const languageNames = { ja: "日语", en: "英语" } as const;
+const referenceLanguages = { ivan: "英语", love: "日语" } as const;
 
 export function FishModelLab() {
   const [samples, setSamples] = useState<FishSample[]>([]);
   const [role, setRole] = useState<"ivan" | "love">("ivan");
+  const [language, setLanguage] = useState<"ja" | "en">("ja");
   const [loadError, setLoadError] = useState("");
   const [audioError, setAudioError] = useState("");
   const players = useRef(new Map<string, HTMLAudioElement>());
-  const selected = samples.filter((sample) => sample.role === role);
+  const selected = samples.filter((sample) => sample.role === role && sample.language === language);
   const reference = selected[0];
   const stop = () => players.current.forEach((player) => player.pause());
   const playOnly = (current: HTMLAudioElement) => players.current.forEach((player) => {
@@ -40,13 +44,15 @@ export function FishModelLab() {
     const controller = new AbortController();
     void fetch("./fish-models.json", { cache: "no-store", signal: controller.signal }).then(async (response) => {
       if (!response.ok) throw new Error("试听录音暂时无法加载，请刷新重试。");
-      const data = z.array(SampleSchema).length(12).parse(await response.json());
-      const combinations = new Set(data.map((sample) => `${sample.role}-${sample.model}-${sample.condition}`));
-      if (combinations.size !== 12 || new Set(data.map((sample) => sample.id)).size !== 12) {
+      const data = z.array(SampleSchema).length(24).parse(await response.json());
+      const combinations = new Set(data.map((sample) => `${sample.role}-${sample.language}-${sample.model}-${sample.condition}`));
+      if (combinations.size !== 24 || new Set(data.map((sample) => sample.id)).size !== 24) {
         throw new Error("试听配置不完整，请稍后刷新。");
       }
-      if (new Set(data.map((sample) => sample.spokenText)).size !== 1) {
-        throw new Error("试听台词不一致，暂时无法展示同台词对照。");
+      for (const outputLanguage of languages) {
+        if (new Set(data.filter((sample) => sample.language === outputLanguage).map((sample) => sample.spokenText)).size !== 1) {
+          throw new Error("试听台词不一致，暂时无法展示同台词对照。");
+        }
       }
       for (const character of ["ivan", "love"] as const) {
         if (new Set(data.filter((sample) => sample.role === character).map((sample) => sample.referenceUrl)).size !== 1) {
@@ -82,11 +88,12 @@ export function FishModelLab() {
       <a className="text-sm text-muted-foreground" href={`./${window.location.hash}`}>返回语音体验</a>
     </header>
     <section className="rounded-2xl border border-border bg-card p-6 shadow-e1">
-      <h1 className="font-display text-2xl">Fish 新版日语对照</h1>
-      <p className="mt-3 text-sm">同一角色、同一段日语，比较 S2 Pro 配置基线、S2.1 Pro 与 Drama 3 的普通说话和耳语指令。</p>
-      <p className="mt-2 text-xs text-muted-foreground">三路均由 Fish 直接生成角色语音，不经过 MeanVC2。这里播放固定录音，保留原始音量，未做均衡或降噪。</p>
+      <h1 className="font-display text-2xl">Fish 模型跨语言对照</h1>
+      <p className="mt-3 text-sm">固定同一个角色音色，切换日语或英语，比较三种 Fish 模型的普通说话与耳语。</p>
+      <p className="mt-2 text-xs text-muted-foreground">切换语言不换音色 ID；全部由 Fish 直接生成，不经过 MeanVC2。日英台词含义相同。</p>
 
-      <label className="mt-5 block max-w-sm text-sm">角色
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+      <label className="block text-sm">角色
         <select aria-label="Fish 对照角色" className="ui-input mt-2" value={role} onChange={(event) => {
           stop(); setAudioError(""); setRole(event.target.value as "ivan" | "love");
         }}>
@@ -94,6 +101,14 @@ export function FishModelLab() {
           <option value="love">月見 灯</option>
         </select>
       </label>
+      <label className="block text-sm">输出语言
+        <select aria-label="Fish 对照语言" className="ui-input mt-2" value={language} onChange={(event) => {
+          stop(); setAudioError(""); setLanguage(event.target.value as "ja" | "en");
+        }}>
+          {languages.map((item) => <option key={item} value={item}>{languageNames[item]}</option>)}
+        </select>
+      </label>
+      </div>
 
       {!reference && !loadError && <p className="mt-4 text-sm" role="status">正在加载试听录音…</p>}
       {loadError && <p className="mt-4 text-sm text-destructive" role="alert">{loadError}</p>}
@@ -101,14 +116,14 @@ export function FishModelLab() {
 
       {reference && <>
         <article className="mt-5 rounded-xl border border-border bg-background p-4">
-          <h2 className="text-sm font-medium">{reference.name} · 角色原声参考</h2>
-          {player(`${role}-reference`, reference.referenceUrl, `${reference.name}角色原声参考`)}
-          <p className="mt-2 text-xs text-muted-foreground">用来辨认角色音色；原声参考与下面的日语录音台词不同。</p>
+          <h2 className="text-sm font-medium">{reference.name} · 原声参考（{referenceLanguages[role]}）</h2>
+          {player(`${role}-reference`, reference.referenceUrl, `${reference.name}${referenceLanguages[role]}原声参考`)}
+          <p className="mt-2 text-xs text-muted-foreground">用来辨认角色音色；参考台词与下面的对照录音不同。</p>
         </article>
 
         <div className="mt-5 rounded-xl bg-background p-4">
-          <p className="text-xs text-muted-foreground">六段使用同一句日语；耳语版仅增加耳语指令。</p>
-          <p className="mt-2 text-sm" lang="ja">{reference.spokenText}</p>
+          <p className="text-xs text-muted-foreground">六段使用同一句{languageNames[language]}；耳语版仅增加耳语指令。</p>
+          <p className="mt-2 text-sm" lang={language}>{reference.spokenText}</p>
         </div>
 
         {conditions.map((condition) => <section key={condition} className="mt-6" aria-label={condition === "normal" ? "普通说话对照" : "耳语对照"}>
@@ -116,7 +131,7 @@ export function FishModelLab() {
           <div className="mt-3 grid gap-4 lg:grid-cols-3">
             {models.map((model) => {
               const sample = selected.find((item) => item.model === model && item.condition === condition)!;
-              const label = `${reference.name} · ${modelNames[model]} · ${condition === "normal" ? "普通说话" : "耳语"}`;
+              const label = `${reference.name} · ${languageNames[language]} · ${modelNames[model]} · ${condition === "normal" ? "普通说话" : "耳语"}`;
               return <article key={sample.id} className="rounded-xl border border-border bg-background p-4">
                 <h3 className="text-sm font-medium">{modelNames[model]}</h3>
                 {player(sample.id, sample.audioUrl, label)}
@@ -127,9 +142,9 @@ export function FishModelLab() {
 
         <details className="mt-6 text-xs text-muted-foreground">
           <summary className="cursor-pointer">查看生成说明与耗时</summary>
-          <p className="mt-3">模型名称来自请求时明确指定的 model；后台没有回传实际服务模型 ID。播放器使用生成后保存的原始录音。</p>
+          <p className="mt-3">模型名称来自请求时明确指定的 model；后台没有回传实际服务模型 ID。播放器使用生成后保存的原始录音，保留原始音量，未做均衡或降噪。</p>
           <p className="mt-2">S2 Pro 是这两个角色本轮读回的音色配置基线；生产通话的实验分流没有在本页验证。</p>
-          <p className="mt-2">普通版不加风格指令；耳语版在同一句正文前加 <code>[whisper]</code>。是否保持角色声音、日语是否自然、是否像耳语，请直接试听判断。</p>
+          <p className="mt-2">普通版不加风格指令；耳语版在同一句正文前加 <code>[whisper]</code>。是否保持角色声音、发音是否自然、是否像耳语，请直接试听判断。</p>
           <div className="mt-3 grid gap-1">
             {selected.map((sample) => <p key={sample.id}>{modelNames[sample.model]} · {sample.condition === "normal" ? "普通说话" : "耳语"}：{(sample.generationMs / 1000).toFixed(2)} 秒</p>)}
           </div>
